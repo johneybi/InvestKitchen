@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/decision-context.schema.json",
+  "title": "TradeMind Decision Context Projection Bundle v1",
+  "type": "object",
+  "required": ["protocol_version", "context", "client_metadata", "diagnostics"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "context": {"$ref": "#/$defs/decisionContext"},
+    "client_metadata": {"type": "object"},
+    "diagnostics": {"type": "object"},
+    "assessments": {"type": "array", "items": {"$ref": "#/$defs/assessment"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "decisionRequest": {
+      "type": "object",
+      "required": ["decision_request_id", "actor", "objective", "subject_refs", "as_of_request"],
+      "properties": {
+        "decision_request_id": {"$ref": "common.schema.json#/$defs/id"},
+        "actor": {"type": "string", "minLength": 1},
+        "objective": {"type": "string", "minLength": 1},
+        "subject_refs": {"type": "array", "items": {"type": "string"}},
+        "portfolio_id": {"type": ["string", "null"]},
+        "account_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "horizon": {"type": ["string", "null"]},
+        "as_of_request": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "constraints": {"type": ["object", "array", "null"]},
+        "requested_context": {"type": ["array", "null"], "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "decisionContext": {
+      "type": "object",
+      "required": ["context_id", "context_version", "request", "generated_at", "component_results", "gaps", "conflicts", "freshness_summary", "authority_summary", "input_fingerprints", "context_digest"],
+      "properties": {
+        "context_id": {"$ref": "common.schema.json#/$defs/id"},
+        "context_version": {"type": "string", "minLength": 1},
+        "request": {"$ref": "#/$defs/decisionRequest"},
+        "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "portfolio": {"type": ["object", "null"]},
+        "policy": {"type": ["object", "array", "null"]},
+        "active_plans": {"type": "array"},
+        "market": {"type": ["object", "null"]},
+        "macro": {"type": ["object", "null"]},
+        "knowledge": {"type": ["object", "null"]},
+        "ephemeral_evidence": {"type": "array"},
+        "previous_decisions": {"type": "array"},
+        "component_results": {"type": "array", "items": {"$ref": "capability-result.schema.json"}},
+        "gaps": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/gap"}},
+        "conflicts": {"type": "array", "items": {"type": "object"}},
+        "freshness_summary": {"type": "object"},
+        "authority_summary": {"type": "object"},
+        "input_fingerprints": {"type": "object", "additionalProperties": {"type": "string"}},
+        "context_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "assessment": {
+      "type": "object",
+      "required": ["assessment_id", "assessment_type", "producer", "generated_at", "observations", "interpretation", "conditions", "invalidation", "authority"],
+      "properties": {
+        "assessment_id": {"$ref": "common.schema.json#/$defs/id"},
+        "assessment_type": {"type": "string", "minLength": 1},
+        "producer": {"$ref": "common.schema.json#/$defs/producer"},
+        "input_context_id": {"type": ["string", "null"]},
+        "input_refs": {"type": "array", "items": {"type": "string"}},
+        "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "observations": {"type": "array"},
+        "interpretation": {"type": ["string", "object"]},
+        "conditions": {"type": "array"},
+        "invalidation": {"type": "array"},
+        "confidence": {"enum": ["low", "medium", "high", "unknown"]},
+        "authority": {"const": "analysis_assessment"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/storage-layout.schema.json",
+  "title": "TradeMind Protocol v1 Persistent Storage Layout",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "layout_version",
+    "state_root_env",
+    "backup_root_env",
+    "relative_paths",
+    "backup_policy",
+    "synology_reference"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "layout_version": {"const": 2},
+    "state_root_env": {"const": "TRADEMIND_V1_STATE_ROOT"},
+    "backup_root_env": {"const": "TRADEMIND_V1_BACKUP_ROOT"},
+    "relative_paths": {
+      "type": "object",
+      "required": ["native_write_root", "native_write_journal", "native_knowledge_journal", "approval_root", "approval_journal", "portfolio_checkpoint_root", "portfolio_checkpoint_journal"],
+      "properties": {
+        "native_write_root": {"const": "native-write"},
+        "native_write_journal": {"const": "native-write/write-journal.jsonl"},
+        "native_knowledge_journal": {"const": "native-write/knowledge-journal.jsonl"},
+        "approval_root": {"const": "approvals"},
+        "approval_journal": {"const": "approvals/approval-journal.jsonl"},
+        "portfolio_checkpoint_root": {"const": "portfolio-checkpoints"},
+        "portfolio_checkpoint_journal": {"const": "portfolio-checkpoints/checkpoints.jsonl"}
+      },
+      "additionalProperties": false
+    },
+    "backup_policy": {
+      "type": "object",
+      "required": [
+        "snapshot_format",
+        "consistency",
+        "copy_lock_files",
+        "verify_before_success",
+        "restore_to_staging_first",
+        "overwrite_nonempty_target",
+        "automatic_prune"
+      ],
+      "properties": {
+        "snapshot_format": {"const": "directory_with_manifest"},
+        "consistency": {"const": "triple_journal_locked_snapshot"},
+        "copy_lock_files": {"const": false},
+        "verify_before_success": {"const": true},
+        "restore_to_staging_first": {"const": true},
+        "overwrite_nonempty_target": {"const": false},
+        "automatic_prune": {"const": false}
+      },
+      "additionalProperties": false
+    },
+    "synology_reference": {
+      "type": "object",
+      "required": ["state_root", "backup_root"],
+      "properties": {
+        "state_root": {"type": "string", "minLength": 1},
+        "backup_root": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

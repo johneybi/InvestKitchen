@@ -1,0 +1,120 @@
+name: ${COMPOSE_PROJECT_NAME:-trademind-runtime}
+
+services:
+  runtime:
+    platform: linux/amd64
+    image: ${TRADEMIND_RUNTIME_IMAGE_REF:?set TRADEMIND_RUNTIME_IMAGE_REF to the preflighted local image}
+    init: true
+    restart: unless-stopped
+    user: "${TRADEMIND_RUNTIME_UID:-1000}:${TRADEMIND_RUNTIME_GID:-1000}"
+    read_only: true
+    mem_limit: 512m
+    mem_reservation: 128m
+    pids_limit: 64
+    stop_grace_period: 30s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    environment:
+      TZ: Asia/Seoul
+      PYTHONUNBUFFERED: "1"
+      TRADEMIND_TUNNEL_ID: ${TRADEMIND_TUNNEL_ID:?set TRADEMIND_TUNNEL_ID outside Git}
+      CONTROL_PLANE_API_KEY_FILE: /run/secrets/control_plane_api_key
+      TRADEMIND_PERSONAL_DATA_ROOT: /var/lib/trademind/personal
+      TRADEMIND_STATE_ROOT: /var/lib/trademind/state
+      INVESTKITCHEN_PORTFOLIO_AUTHORITY: ${INVESTKITCHEN_PORTFOLIO_AUTHORITY:-personal-data}
+      INVESTKITCHEN_CONNECTOR_WRITES: ${INVESTKITCHEN_CONNECTOR_WRITES:-disabled}
+      INVESTKITCHEN_POLICY_WRITES: ${INVESTKITCHEN_POLICY_WRITES:-disabled}
+      INVESTKITCHEN_OPINION_WRITES: ${INVESTKITCHEN_OPINION_WRITES:-disabled}
+      INVESTKITCHEN_MARKET_PROVIDER: ${INVESTKITCHEN_MARKET_PROVIDER:-none}
+      INVESTKITCHEN_MARKET_SECRET_FILE: /run/secrets/toss_market_readonly
+      INVESTKITCHEN_ACCOUNT_SYNC: ${INVESTKITCHEN_ACCOUNT_SYNC:-disabled}
+      INVESTKITCHEN_ACCOUNT_BINDING_FILE: /run/secrets/account_bindings
+      INVESTKITCHEN_TOSS_ACCOUNT_SECRET_FILE: /run/secrets/toss_account_readonly
+      INVESTKITCHEN_NHPLUG_ACCOUNT_SECRET_FILE: /run/secrets/nhplug_account_readonly
+      INVESTKITCHEN_ACCOUNT_SYNC_MAX_AGE_SECONDS: ${INVESTKITCHEN_ACCOUNT_SYNC_MAX_AGE_SECONDS:-300}
+      HEALTH_LISTEN_ADDR: 0.0.0.0:8080
+    secrets:
+      - source: control_plane_api_key
+        target: control_plane_api_key
+        uid: "${TRADEMIND_RUNTIME_UID:-1000}"
+        gid: "${TRADEMIND_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: toss_market_readonly
+        target: toss_market_readonly
+        uid: "${TRADEMIND_RUNTIME_UID:-1000}"
+        gid: "${TRADEMIND_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: account_bindings
+        target: account_bindings
+        uid: "${TRADEMIND_RUNTIME_UID:-1000}"
+        gid: "${TRADEMIND_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: toss_account_readonly
+        target: toss_account_readonly
+        uid: "${TRADEMIND_RUNTIME_UID:-1000}"
+        gid: "${TRADEMIND_RUNTIME_GID:-1000}"
+        mode: 0400
+      - source: nhplug_account_readonly
+        target: nhplug_account_readonly
+        uid: "${TRADEMIND_RUNTIME_UID:-1000}"
+        gid: "${TRADEMIND_RUNTIME_GID:-1000}"
+        mode: 0400
+    volumes:
+      - personal_data:/var/lib/trademind/personal:ro
+      - runtime_state:/var/lib/trademind/state
+      - runtime_backups:/var/lib/trademind/backups
+    networks:
+      - egress
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - >-
+          import urllib.request;
+          r=urllib.request.urlopen('http://127.0.0.1:8080/readyz', timeout=5);
+          raise SystemExit(0 if r.status == 200 and r.read().strip() == b'ready' else 1)
+      interval: 30s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+secrets:
+  control_plane_api_key:
+    file: ${TRADEMIND_CONTROL_PLANE_API_KEY_FILE:-./control-plane-api-key.example}
+  toss_market_readonly:
+    file: ${INVESTKITCHEN_TOSS_MARKET_SECRET_HOST_FILE:-./toss-market-readonly.example.json}
+  account_bindings:
+    file: ${INVESTKITCHEN_ACCOUNT_BINDING_HOST_FILE:-./account-bindings.example.json}
+  toss_account_readonly:
+    file: ${INVESTKITCHEN_TOSS_ACCOUNT_SECRET_HOST_FILE:-./toss-account-readonly.example.json}
+  nhplug_account_readonly:
+    file: ${INVESTKITCHEN_NHPLUG_ACCOUNT_SECRET_HOST_FILE:-./nhplug-account-readonly.example.json}
+
+volumes:
+  personal_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${TRADEMIND_PERSONAL_DATA_ROOT:-/volume1/docker/trademind/runtime-data/personal}
+  runtime_state:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${TRADEMIND_STATE_ROOT:-/volume1/docker/trademind/runtime-data/state}
+  runtime_backups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${TRADEMIND_BACKUP_ROOT:-/volume1/docker/trademind/runtime-data/backups}
+
+networks:
+  egress:
+    driver: bridge

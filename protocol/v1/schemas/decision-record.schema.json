@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/decision-record.schema.json",
+  "title": "TradeMind Decision Record v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "decision_id",
+    "portfolio_id",
+    "account_ids",
+    "subject_refs",
+    "statement",
+    "action_intent",
+    "conditions",
+    "invalidation_conditions",
+    "authority",
+    "status",
+    "decided_at",
+    "recorded_at"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "decision_id": {"$ref": "common.schema.json#/$defs/id"},
+    "portfolio_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/id"}, {"type": "null"}]},
+    "account_ids": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/id"},
+      "uniqueItems": true
+    },
+    "subject_refs": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "statement": {"type": "string", "minLength": 1},
+    "action_intent": {
+      "type": "object",
+      "required": ["action"],
+      "properties": {
+        "action": {"enum": ["buy", "sell", "hold", "wait", "rebalance", "monitor", "other"]},
+        "asset_ref": {"type": ["string", "null"]},
+        "quantity": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["value", "unit"],
+              "properties": {
+                "value": {"type": "number", "exclusiveMinimum": 0},
+                "unit": {"enum": ["shares", "percent", "amount", "other"]}
+              },
+              "additionalProperties": false
+            },
+            {"type": "null"}
+          ]
+        },
+        "notes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "invalidation_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "rationale_summary": {"type": ["string", "null"]},
+    "source_context_ref": {"type": ["string", "null"]},
+    "authority": {"enum": ["explicit_user_decision", "user_approved_assistant_draft", "historical_migration"]},
+    "status": {"enum": ["active", "superseded", "cancelled", "fulfilled", "historical", "not_adopted"]},
+    "historical_status": {"type": ["string", "null"]},
+    "supersedes": {"type": ["string", "null"]},
+    "decided_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "recorded_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+  },
+  "additionalProperties": false
+}

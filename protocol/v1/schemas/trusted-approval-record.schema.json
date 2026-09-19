@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/trusted-approval-record.schema.json",
+  "title": "TradeMind Trusted Approval Authority Record v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "event_type",
+    "authority_id",
+    "approval_id",
+    "approval_digest",
+    "subject_user_id",
+    "client_id",
+    "credential_binding_id",
+    "grant_id",
+    "interaction_ref",
+    "occurred_at"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "event_type": {"enum": ["approval_issued", "approval_revoked"]},
+    "authority_id": {"$ref": "common.schema.json#/$defs/id"},
+    "approval_id": {"$ref": "common.schema.json#/$defs/id"},
+    "approval_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "approval": {
+      "anyOf": [
+        {"$ref": "operation.schema.json#/$defs/approval"},
+        {"type": "null"}
+      ]
+    },
+    "subject_user_id": {"$ref": "common.schema.json#/$defs/id"},
+    "client_id": {"$ref": "common.schema.json#/$defs/id"},
+    "credential_binding_id": {"$ref": "common.schema.json#/$defs/id"},
+    "grant_id": {"$ref": "common.schema.json#/$defs/id"},
+    "interaction_ref": {"$ref": "common.schema.json#/$defs/id"},
+    "revocation_reason": {"type": ["string", "null"]},
+    "occurred_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"event_type": {"const": "approval_issued"}}},
+      "then": {"required": ["approval"], "properties": {"approval": {"$ref": "operation.schema.json#/$defs/approval"}}}
+    },
+    {
+      "if": {"properties": {"event_type": {"const": "approval_revoked"}}},
+      "then": {"required": ["revocation_reason"], "properties": {"approval": {"type": "null"}, "revocation_reason": {"type": "string", "minLength": 1}}}
+    }
+  ],
+  "additionalProperties": false
+}

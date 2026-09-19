@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-replay-report.schema.json",
+  "title": "InvestKitchen Privacy-safe Portfolio Native Replay Report v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "replay_report_version",
+    "generated_at",
+    "privacy_mode",
+    "status",
+    "input_fingerprints",
+    "summary",
+    "portfolios"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "replay_report_version": {"const": 1},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "privacy_mode": {"const": "summary_only"},
+    "status": {"enum": ["waiting_for_native_transaction", "replayed", "replayed_with_gaps", "blocked"]},
+    "input_fingerprints": {
+      "type": "object",
+      "required": ["native_write_journal_present", "native_write_journal_sha256", "checkpoint_journal_sha256", "native_write_event_count", "checkpoint_count"],
+      "properties": {
+        "native_write_journal_present": {"type": "boolean"},
+        "native_write_journal_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "checkpoint_journal_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "native_write_event_count": {"type": "integer", "minimum": 0},
+        "checkpoint_count": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["portfolio_count", "waiting_count", "replayed_count", "replayed_with_gaps_count", "blocked_count", "native_transaction_delta_count"],
+      "properties": {
+        "portfolio_count": {"type": "integer", "minimum": 1},
+        "waiting_count": {"type": "integer", "minimum": 0},
+        "replayed_count": {"type": "integer", "minimum": 0},
+        "replayed_with_gaps_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0},
+        "native_transaction_delta_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "portfolios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "portfolio_ref",
+          "status",
+          "checkpoint_ref",
+          "checkpoint_base_state_digest",
+          "current_state_digest",
+          "native_transaction_delta_count",
+          "journal_event_count",
+          "differences",
+          "gap_count",
+          "gap_codes",
+          "block_code"
+        ],
+        "properties": {
+          "portfolio_ref": {"type": "string", "pattern": "^portfolio-replay:[0-9a-f]{16}$"},
+          "status": {"enum": ["waiting_for_native_transaction", "replayed", "replayed_with_gaps", "blocked"]},
+          "checkpoint_ref": {"type": ["string", "null"]},
+          "checkpoint_base_state_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "current_state_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "native_transaction_delta_count": {"type": "integer", "minimum": 0},
+          "journal_event_count": {"type": "integer", "minimum": 0},
+          "differences": {
+            "type": "object",
+            "required": ["account_changes", "position_changes", "cash_changes"],
+            "properties": {
+              "account_changes": {"type": "integer", "minimum": 0},
+              "position_changes": {"type": "integer", "minimum": 0},
+              "cash_changes": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "gap_count": {"type": "integer", "minimum": 0},
+          "gap_codes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+          "block_code": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

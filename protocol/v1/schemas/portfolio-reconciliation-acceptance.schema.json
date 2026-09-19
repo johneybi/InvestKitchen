@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-reconciliation-acceptance.schema.json",
+  "title": "InvestKitchen Portfolio Reconciliation Acceptance Result v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "reconciliation_version",
+    "status",
+    "candidate_id",
+    "candidate_digest",
+    "checkpoint_id",
+    "accepted_at",
+    "verification_ref"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "reconciliation_version": {"const": 1},
+    "status": {"const": "accepted"},
+    "candidate_id": {"$ref": "common.schema.json#/$defs/id"},
+    "candidate_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "checkpoint_id": {"$ref": "common.schema.json#/$defs/id"},
+    "accepted_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "verification_ref": {"$ref": "common.schema.json#/$defs/id"}
+  },
+  "additionalProperties": false
+}

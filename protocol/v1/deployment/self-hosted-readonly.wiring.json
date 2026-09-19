@@ -1,0 +1,35 @@
+{
+  "wiring_version": "1.0-draft",
+  "purpose": "Reference wiring for the private self-hosted InvestKitchen MCP runtime; TradeMind names below are compatibility identifiers",
+  "instance_manifest": "protocol/v1/fixtures/full-reference.instance.json",
+  "instance_manifest_role": "capability-composition fixture; not a signed production extension inventory",
+  "mcp": {
+    "protocol_version": "2026-07-28",
+    "transport": "stdio",
+    "adapter": "protocol/v1/transport/mcp_stdio.py",
+    "tunnel_child_launcher": "protocol/v1/deployment/tunnel_stdio_launcher.py",
+    "runtime_root": "this repository",
+    "runtime_root_product": "InvestKitchen",
+    "personal_data_root": "required production Portfolio/Knowledge input outside Git",
+    "native_state_root": "optional durable Decision/Transaction history input outside Git",
+    "legacy_workspace": "optional external migration/integration compatibility source; not production Portfolio/Knowledge authority"
+  },
+  "secure_tunnel": {
+    "profile": "trademind-readonly",
+    "profile_name_status": "operational compatibility identifier",
+    "sample": "sample_mcp_stdio_local",
+    "control_plane_secret_env": "CONTROL_PLANE_API_KEY",
+    "control_plane_secret_forwarded_to_mcp": false
+  },
+  "market_binding": {
+    "optional": true,
+    "implementation": "toss-native-subprocess",
+    "worker": "protocol/v1/providers/toss_readonly_worker.py",
+    "provider_workspace": null,
+    "secret_delivery": "runtime secret file",
+    "secret_fields": ["client_id", "client_secret"],
+    "capabilities": ["market.quote", "market.ohlcv"],
+    "write_capabilities": [],
+    "isolation_status": "provider subprocess boundary; same-container/host-user boundary is not OS-level secret isolation"
+  }
+}

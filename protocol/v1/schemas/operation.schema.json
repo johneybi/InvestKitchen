@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/operation.schema.json",
+  "title": "TradeMind Operation Lifecycle v1",
+  "type": "object",
+  "required": ["protocol_version", "operation", "receipt", "target_lifecycle", "migration_gaps"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "operation": {"$ref": "#/$defs/operation"},
+    "preview": {"anyOf": [{"$ref": "#/$defs/preview"}, {"type": "null"}]},
+    "approval": {"anyOf": [{"$ref": "#/$defs/approval"}, {"type": "null"}]},
+    "legacy_confirmation": {"type": ["object", "null"]},
+    "receipt": {"$ref": "#/$defs/receipt"},
+    "target_lifecycle": {"type": "object"},
+    "migration_gaps": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/gap"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "operation": {
+      "type": "object",
+      "required": ["operation_id", "request_id", "idempotency_key", "actor", "action", "target", "requested_at", "state"],
+      "properties": {
+        "operation_id": {"$ref": "common.schema.json#/$defs/id"},
+        "request_id": {"$ref": "common.schema.json#/$defs/id"},
+        "idempotency_key": {"$ref": "common.schema.json#/$defs/id"},
+        "actor": {"type": "string", "minLength": 1},
+        "action": {"type": "string", "minLength": 1},
+        "target": {"type": "object"},
+        "requested_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "state": {"enum": ["previewed", "awaiting_approval", "accepted", "pending", "completed", "failed", "blocked", "conflicted", "cancelled"]}
+      },
+      "additionalProperties": false
+    },
+    "preview": {
+      "type": "object",
+      "required": ["preview_id", "operation_id", "action", "target", "canonical_payload", "payload_digest", "expected_effect", "warnings", "generated_at", "expires_at"],
+      "properties": {
+        "preview_id": {"$ref": "common.schema.json#/$defs/id"},
+        "operation_id": {"$ref": "common.schema.json#/$defs/id"},
+        "action": {"type": "string"},
+        "target": {"type": "object"},
+        "base_version": {"type": ["string", "null"]},
+        "canonical_payload": {"type": "object"},
+        "payload_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "expected_effect": {"type": "string", "minLength": 1},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "expires_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+      },
+      "additionalProperties": false
+    },
+    "approval": {
+      "type": "object",
+      "required": ["approval_id", "preview_id", "authenticated_user_id", "client_id", "approved_payload_digest", "target", "approved_at", "expires_at", "approval_method"],
+      "properties": {
+        "approval_id": {"$ref": "common.schema.json#/$defs/id"},
+        "preview_id": {"$ref": "common.schema.json#/$defs/id"},
+        "authenticated_user_id": {"$ref": "common.schema.json#/$defs/id"},
+        "client_id": {"$ref": "common.schema.json#/$defs/id"},
+        "approved_payload_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "target": {"type": "object"},
+        "base_version": {"type": ["string", "null"]},
+        "approved_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "expires_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "approval_method": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "receipt": {
+      "type": "object",
+      "required": ["operation_id", "action", "target", "state", "result_claim", "effect_scope", "audit_ref"],
+      "properties": {
+        "operation_id": {"$ref": "common.schema.json#/$defs/id"},
+        "action": {"type": "string"},
+        "target": {"type": "object"},
+        "state": {"enum": ["accepted", "pending", "completed", "failed", "blocked", "conflicted", "cancelled"]},
+        "applied_version": {"type": ["string", "null"]},
+        "result_ref": {"type": ["string", "null"]},
+        "result_claim": {"enum": ["supported", "conditional", "unverified", "blocked"]},
+        "effect_scope": {"type": "string", "minLength": 1},
+        "target_lifecycle_state_ref": {"type": ["string", "null"]},
+        "completed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "failure_code": {"type": ["string", "null"]},
+        "audit_ref": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}

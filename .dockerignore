@@ -1,0 +1,16 @@
+.git
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+state/
+runtime-data/
+backups/
+secrets/
+private/
+protocol/v1/fixtures/generated/
+*.log
+*.pid
+*.sock

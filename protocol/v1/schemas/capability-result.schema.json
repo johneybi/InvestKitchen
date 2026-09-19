@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/capability-result.schema.json",
+  "title": "TradeMind Capability Result Envelope v1",
+  "type": "object",
+  "required": ["capability", "contract_version", "producer", "status", "generated_at", "freshness", "provenance", "authority", "warnings", "gaps", "conflicts", "permissions_used"],
+  "properties": {
+    "capability": {"type": "string", "minLength": 1},
+    "contract_version": {"type": "string", "minLength": 1},
+    "producer": {"$ref": "common.schema.json#/$defs/producer"},
+    "status": {"enum": ["ok", "partial", "stale", "unavailable", "blocked", "error"]},
+    "data": {},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "data_times": {"type": "object"},
+    "freshness": {"enum": ["current", "recent", "cached", "stale", "local", "unknown"]},
+    "source_mode": {"enum": ["live_fetch", "cache", "local_store", "fixture", "unknown"]},
+    "provenance": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/provenanceRef"}},
+    "authority": {"enum": ["market_observation", "portfolio_fact", "decision_record", "transaction_record", "derived_calculation", "analysis_assessment", "knowledge_claim", "reflection_session", "reflection_record", "notification_delivery", "paper_result", "unknown"]},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "gaps": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/gap"}},
+    "conflicts": {"type": "array", "items": {"type": "object"}},
+    "permissions_used": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": false
+}

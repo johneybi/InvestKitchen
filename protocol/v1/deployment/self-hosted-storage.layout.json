@@ -1,0 +1,28 @@
+{
+  "protocol_version": "1.0-draft",
+  "layout_version": 2,
+  "state_root_env": "TRADEMIND_V1_STATE_ROOT",
+  "backup_root_env": "TRADEMIND_V1_BACKUP_ROOT",
+  "relative_paths": {
+    "native_write_root": "native-write",
+    "native_write_journal": "native-write/write-journal.jsonl",
+    "native_knowledge_journal": "native-write/knowledge-journal.jsonl",
+    "approval_root": "approvals",
+    "approval_journal": "approvals/approval-journal.jsonl",
+    "portfolio_checkpoint_root": "portfolio-checkpoints",
+    "portfolio_checkpoint_journal": "portfolio-checkpoints/checkpoints.jsonl"
+  },
+  "backup_policy": {
+    "snapshot_format": "directory_with_manifest",
+    "consistency": "triple_journal_locked_snapshot",
+    "copy_lock_files": false,
+    "verify_before_success": true,
+    "restore_to_staging_first": true,
+    "overwrite_nonempty_target": false,
+    "automatic_prune": false
+  },
+  "synology_reference": {
+    "state_root": "/volume1/docker/trademind/runtime-data/state",
+    "backup_root": "/volume1/docker/trademind/runtime-data/backups"
+  }
+}

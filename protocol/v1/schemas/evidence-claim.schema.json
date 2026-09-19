@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/evidence-claim.schema.json",
+  "title": "TradeMind Evidence and Claim Projection v1",
+  "type": "object",
+  "required": ["protocol_version", "generated_at", "evidence", "claims"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "knowledge_generation": {"$ref": "#/$defs/knowledgeGeneration"},
+    "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+    "claims": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
+    "migration_gaps": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/gap"}}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "source": {
+      "type": "object",
+      "required": ["source_type", "provider_or_publisher"],
+      "properties": {
+        "source_type": {"type": "string", "minLength": 1},
+        "provider_or_publisher": {"type": "string", "minLength": 1},
+        "speaker": {"type": ["string", "null"]},
+        "document_id": {"type": ["string", "null"]},
+        "url_or_external_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["evidence_id", "evidence_kind", "subject_refs", "source", "authority_class", "verification", "freshness", "recorded_at"],
+      "properties": {
+        "evidence_id": {"$ref": "common.schema.json#/$defs/id"},
+        "evidence_kind": {"type": "string", "minLength": 1},
+        "subject_refs": {"type": "array", "items": {"type": "string"}},
+        "source": {"$ref": "#/$defs/source"},
+        "source_locator": {"type": ["string", "null"]},
+        "content_ref_or_value": {},
+        "authority_class": {"enum": ["primary", "transcript", "official", "secondary", "user_supplied", "derived", "model_generated", "unverified"]},
+        "published_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "retrieved_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "recorded_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "content_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "verification": {"enum": ["verified", "partial", "unverified", "conflicted", "workflow_verified"]},
+        "freshness": {"enum": ["current", "recent", "stale", "historical", "unknown"]},
+        "lifecycle_scope": {"enum": ["canonical", "context_only"]},
+        "context_id": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "claim": {
+      "type": "object",
+      "required": ["claim_id", "statement", "subject_refs", "claim_type", "conditions", "invalidation", "evidence_refs", "derivation_type", "registration_state", "provenance_verification", "semantic_fidelity", "truth_status", "applicability_status"],
+      "properties": {
+        "claim_id": {"$ref": "common.schema.json#/$defs/id"},
+        "statement": {"type": "string", "minLength": 1},
+        "subject_refs": {"type": "array", "items": {"type": "string"}},
+        "speaker": {"type": ["string", "null"]},
+        "claim_type": {"type": "string", "minLength": 1},
+        "stance": {"type": ["string", "null"]},
+        "horizon": {"type": ["string", "null"]},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "invalidation": {"type": "array", "items": {"type": "string"}},
+        "effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "valid_until": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "evidence_refs": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/id"}, "minItems": 1, "uniqueItems": true},
+        "derivation_type": {"enum": ["direct_statement", "paraphrase", "inference", "derived", "unknown"]},
+        "registration_state": {"enum": ["candidate", "canonical", "rejected", "superseded"]},
+        "provenance_verification": {"enum": ["verified", "partial", "unverified", "conflicted"]},
+        "semantic_fidelity": {"enum": ["direct", "faithful_paraphrase", "inference", "unknown"]},
+        "truth_status": {"enum": ["observed_fact", "attributed_opinion", "estimate", "hypothesis", "contradicted", "unknown"]},
+        "applicability_status": {"enum": ["applicable", "conditional", "stale", "expired", "out_of_scope", "unresolved"]},
+        "confidence": {"enum": ["low", "medium", "high", "unknown"]}
+      },
+      "additionalProperties": false
+    },
+    "knowledgeGeneration": {
+      "type": "object",
+      "required": ["generation_id", "commit_status", "committed_at", "artifact_refs"],
+      "properties": {
+        "generation_id": {"$ref": "common.schema.json#/$defs/id"},
+        "commit_status": {"enum": ["committed", "installing", "failed", "unknown"]},
+        "committed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "registry_or_input_digest": {"type": ["string", "null"]},
+        "artifact_refs": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    }
+  }
+}

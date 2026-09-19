@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/instance-manifest.schema.json",
+  "title": "TradeMind Instance Capability Manifest v1",
+  "type": "object",
+  "required": ["protocol_version", "instance_id", "profile", "kernel_capabilities", "extensions", "capability_bindings", "client_exposure"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "instance_id": {"$ref": "common.schema.json#/$defs/id"},
+    "profile": {"enum": ["reflection_only", "full_reference", "custom"]},
+    "kernel_capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "extensions": {"type": "array", "items": {"$ref": "extension-manifest.schema.json"}},
+    "capability_bindings": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "client_exposure": {
+      "type": "object",
+      "additionalProperties": {"enum": ["supported", "installed_but_client_unsupported", "disabled"]}
+    }
+  },
+  "additionalProperties": false
+}

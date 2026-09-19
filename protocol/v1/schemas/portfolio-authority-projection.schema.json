@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-authority-projection.schema.json",
+  "title": "InvestKitchen Portfolio Authority Projection v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "projection_version",
+    "checkpoint",
+    "delta",
+    "materialization"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "projection_version": {"const": 1},
+    "checkpoint": {"$ref": "portfolio-checkpoint.schema.json"},
+    "delta": {
+      "type": "object",
+      "required": [
+        "from_commit_id",
+        "through_commit_id",
+        "journal_event_count",
+        "transaction_commit_ids",
+        "transaction_ids"
+      ],
+      "properties": {
+        "from_commit_id": {"type": ["string", "null"]},
+        "through_commit_id": {"type": ["string", "null"]},
+        "journal_event_count": {"type": "integer", "minimum": 0},
+        "transaction_commit_ids": {
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/id"},
+          "uniqueItems": true
+        },
+        "transaction_ids": {
+          "type": "array",
+          "items": {"$ref": "common.schema.json#/$defs/id"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "materialization": {"$ref": "portfolio-materialization.schema.json"}
+  },
+  "additionalProperties": false
+}

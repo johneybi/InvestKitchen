@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-checkpoint.schema.json",
+  "title": "InvestKitchen Portfolio Checkpoint v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "checkpoint_version",
+    "checkpoint_id",
+    "portfolio_id",
+    "created_at",
+    "snapshot_effective_at",
+    "source_kind",
+    "base_portfolio_digest",
+    "base_portfolio",
+    "write_cursor",
+    "cash_basis_refs",
+    "short_allowed_account_ids"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "checkpoint_version": {"const": 1},
+    "checkpoint_id": {"$ref": "common.schema.json#/$defs/id"},
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "snapshot_effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "source_kind": {
+      "enum": ["migration_import", "reconciliation", "manual_snapshot", "materialized_snapshot"]
+    },
+    "source_ref": {"type": ["string", "null"]},
+    "reconciliation_candidate_ref": {"type": ["string", "null"]},
+    "acceptance_verification_ref": {"type": ["string", "null"]},
+    "base_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "base_portfolio": {"$ref": "portfolio.schema.json"},
+    "write_cursor": {
+      "type": "object",
+      "required": ["through_commit_id", "event_count", "prefix_digest"],
+      "properties": {
+        "through_commit_id": {"type": ["string", "null"]},
+        "event_count": {"type": "integer", "minimum": 0},
+        "prefix_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "cash_basis_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["account_id", "currency", "cash_id"],
+        "properties": {
+          "account_id": {"$ref": "common.schema.json#/$defs/id"},
+          "currency": {"$ref": "common.schema.json#/$defs/currency"},
+          "cash_id": {"$ref": "common.schema.json#/$defs/id"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "short_allowed_account_ids": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/id"},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

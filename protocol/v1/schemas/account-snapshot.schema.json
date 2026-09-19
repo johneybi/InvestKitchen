@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/account-snapshot.schema.json",
+  "title": "InvestKitchen Provider-Neutral Account Snapshot",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "portfolio_id",
+    "account_id",
+    "provider_id",
+    "provider_account_ref",
+    "snapshot_effective_at",
+    "retrieved_at",
+    "source_ref",
+    "holdings",
+    "cash",
+    "completeness"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+    "account_id": {"$ref": "common.schema.json#/$defs/id"},
+    "provider_id": {"$ref": "common.schema.json#/$defs/id"},
+    "provider_account_ref": {"$ref": "common.schema.json#/$defs/id"},
+    "snapshot_effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "retrieved_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "source_ref": {"$ref": "common.schema.json#/$defs/id"},
+    "holdings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["asset", "quantity"],
+        "properties": {
+          "asset": {"$ref": "portfolio.schema.json#/$defs/assetRef"},
+          "quantity": {"type": "number", "minimum": 0},
+          "source_evidence": {
+            "type": "array",
+            "items": {"$ref": "common.schema.json#/$defs/id"},
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "cash": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["currency", "cash_kind", "amount"],
+        "properties": {
+          "cash_id": {"$ref": "common.schema.json#/$defs/id"},
+          "currency": {"$ref": "common.schema.json#/$defs/currency"},
+          "cash_kind": {
+            "enum": ["nominal_balance", "settled_cash", "buying_power", "withdrawable_cash", "displayed_settlement", "provider_specific", "unknown"]
+          },
+          "provider_label": {"type": ["string", "null"]},
+          "amount": {"type": "number"},
+          "source_evidence": {
+            "type": "array",
+            "items": {"$ref": "common.schema.json#/$defs/id"},
+            "uniqueItems": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "completeness": {
+      "type": "object",
+      "required": ["holdings", "cash"],
+      "properties": {
+        "holdings": {"enum": ["complete", "partial", "unavailable", "stale"]},
+        "cash": {"enum": ["complete", "partial", "unavailable", "stale"]}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,39 @@
+{
+  "principal": {
+    "subject_user_id": "user:fixture-owner",
+    "client_id": "client:web-gpt-fixture",
+    "credential_binding_id": "credential-binding:fixture-1",
+    "authentication_event_id": "auth-event:fixture-1",
+    "authenticated_at": {"value": "2026-09-15T08:00:00Z", "precision": "source_exact"},
+    "expires_at": {"value": "2026-09-15T09:00:00Z", "precision": "source_exact"}
+  },
+  "grant": {
+    "grant_id": "grant:fixture-readonly",
+    "instance_id": "fixture-full-reference",
+    "subject_user_id": "user:fixture-owner",
+    "client_id": "client:web-gpt-fixture",
+    "credential_binding_id": "credential-binding:fixture-1",
+    "permissions": ["system.tools.list", "system.capabilities.read", "portfolio.read", "knowledge.read", "market.read", "decision.context.build", "reflection.session.start"],
+    "portfolio_scope": ["portfolio-alpha"],
+    "tool_allowlist": ["get_capabilities", "get_portfolio_state", "get_current_knowledge", "search_knowledge", "get_market_quote", "get_market_ohlcv", "build_decision_context", "start_reflection"],
+    "request_policy": {"max_ttl_seconds": 300, "max_future_skew_seconds": 30},
+    "policy_version": "remote-readonly-v1",
+    "issued_at": {"value": "2026-09-15T08:00:00Z", "precision": "source_exact"},
+    "expires_at": {"value": "2026-09-15T09:00:00Z", "precision": "source_exact"}
+  },
+  "request": {
+    "request_id": "remote-fixture-r1",
+    "instance_id": "fixture-full-reference",
+    "method": "tools.call",
+    "params": {"name": "get_portfolio_state", "arguments": {"portfolio_id": "portfolio-alpha"}},
+    "issued_at": {"value": "2026-09-15T08:10:00Z", "precision": "source_exact"},
+    "expires_at": {"value": "2026-09-15T08:11:00Z", "precision": "source_exact"},
+    "nonce": "fixture-nonce-00000001"
+  },
+  "rate_limit": {
+    "status": "ok",
+    "policy_id": "default-read",
+    "scope": "client",
+    "retry_after_seconds": null
+  }
+}

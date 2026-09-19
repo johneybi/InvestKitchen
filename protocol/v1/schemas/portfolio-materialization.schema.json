@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-materialization.schema.json",
+  "title": "InvestKitchen Portfolio Materialization Result v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "materialization_version",
+    "checkpoint_ref",
+    "base_portfolio_digest",
+    "transaction_set_digest",
+    "generated_at",
+    "status",
+    "ordering",
+    "portfolio",
+    "applied_transaction_ids",
+    "skipped_transaction_ids",
+    "cash_basis_refs",
+    "gaps"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "materialization_version": {"const": 1},
+    "checkpoint_ref": {"$ref": "common.schema.json#/$defs/id"},
+    "base_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "transaction_set_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "status": {"enum": ["complete", "partial"]},
+    "ordering": {
+      "const": "effective_at_then_recorded_at_then_transaction_id"
+    },
+    "portfolio": {"$ref": "portfolio.schema.json"},
+    "applied_transaction_ids": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/id"},
+      "uniqueItems": true
+    },
+    "skipped_transaction_ids": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/id"},
+      "uniqueItems": true
+    },
+    "cash_basis_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["account_id", "currency", "cash_id"],
+        "properties": {
+          "account_id": {"$ref": "common.schema.json#/$defs/id"},
+          "currency": {"$ref": "common.schema.json#/$defs/currency"},
+          "cash_id": {"$ref": "common.schema.json#/$defs/id"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/gap"}
+    }
+  },
+  "additionalProperties": false
+}

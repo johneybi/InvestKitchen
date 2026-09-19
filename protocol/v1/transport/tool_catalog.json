@@ -1,0 +1,658 @@
+{
+  "protocol_version": "1.0-draft",
+  "transport_surface": "gateway-tools",
+  "tools": [
+    {
+      "name": "get_capabilities",
+      "description": "Return installed, ready, and client-usable TradeMind capabilities for this instance.",
+      "read_only": true,
+      "required_permissions": ["system.capabilities.read"],
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_contract": "capability-discovery.schema.json"
+    },
+    {
+      "name": "list_portfolios",
+      "description": "Return the server-configured personal Portfolio IDs available to this client. Use this instead of guessing a portfolio_id.",
+      "read_only": true,
+      "required_permissions": ["portfolio.read"],
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_contract": "portfolio-scope-list"
+    },
+    {
+      "name": "get_portfolio_state",
+      "description": "Return the authoritative read-only portfolio projection for one explicit portfolio scope.",
+      "read_only": true,
+      "required_permissions": ["portfolio.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_open_items",
+      "description": "Return unresolved Portfolio data/policy questions preserved as non-materializing OpenItems. These are gaps to resolve, not inferred facts or execution instructions.",
+      "read_only": true,
+      "required_permissions": ["openitem.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_current_policy",
+      "description": "Return the current advisory Policy overlay for one Portfolio. Policy never authorizes an order or mutates Portfolio state.",
+      "read_only": true,
+      "required_permissions": ["policy.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_opinion_weighting",
+      "description": "Return the current versioned speaker/opinion weighting policy used to organize attributed source views.",
+      "read_only": true,
+      "required_permissions": ["opinion.read"],
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "build_opinion_consensus",
+      "description": "Build a non-executing weighted view of currently canonical attributed claims using the fixed horizon policy, reserve, speaker multipliers, and supplemental pool.",
+      "read_only": true,
+      "required_permissions": ["opinion.read", "knowledge.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["question"],
+        "properties": {
+          "question": {"type": "string", "minLength": 1},
+          "horizon": {"enum": ["days", "weeks", "months", "years"]},
+          "mode": {"type": ["string", "null"], "enum": ["short_term", "medium_term", "long_term", null]}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_active_plans",
+      "description": "Return bounded active advisory Plans for one Portfolio. Plans are conditional and non-executing; current Portfolio and Market must be revalidated before any action.",
+      "read_only": true,
+      "required_permissions": ["plan.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_current_knowledge",
+      "description": "Return the bounded committed current Knowledge view.",
+      "read_only": true,
+      "required_permissions": ["knowledge.read"],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "max_outlook": {"type": "integer", "minimum": 1, "maximum": 100}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "search_knowledge",
+      "description": "Search canonical Knowledge claims using a bounded query.",
+      "read_only": true,
+      "required_permissions": ["knowledge.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["query"],
+        "properties": {
+          "query": {"type": "string", "minLength": 1},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 50}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "preview_knowledge_update",
+      "description": "Validate and stage one native Knowledge update for explicit confirmation without persisting it. Use the exact schema field names; in particular request_type, evidence_id, claim_id, and timePoint objects must not be renamed or flattened.",
+      "read_only": true,
+      "destructive": false,
+      "required_permissions": ["knowledge.commit"],
+      "input_schema": {
+        "type": "object",
+        "required": ["update"],
+        "properties": {
+          "update": {
+            "type": "object",
+            "required": ["protocol_version", "request_type", "generation_id", "generated_at", "current_state", "evidence", "claims"],
+            "properties": {
+              "protocol_version": {"const": "1.0-draft"},
+              "request_type": {"const": "knowledge.commit"},
+              "generation_id": {"type": "string", "minLength": 1, "maxLength": 256},
+              "generated_at": {"$ref": "#/$defs/timePoint"},
+              "current_state": {
+                "type": "object",
+                "properties": {
+                  "as_of": {"$ref": "#/$defs/timePoint"},
+                  "valid_until": {"$ref": "#/$defs/timePoint"},
+                  "freshness_status": {"enum": ["current", "recent", "stale", "historical", "unknown"]},
+                  "situational_usable": {"type": "boolean"},
+                  "market_state": {"type": ["string", "null"]},
+                  "stance": {"type": ["string", "null"]},
+                  "confidence": {"enum": ["low", "medium", "high", "unknown"]},
+                  "summary": {"type": ["string", "null"]},
+                  "action_bias": {"type": "array", "items": {"type": "string"}},
+                  "confirmation_conditions": {"type": "array", "items": {"type": "string"}},
+                  "invalidation_conditions": {"type": "array", "items": {"type": "string"}},
+                  "outlook": {"type": "array", "items": {"type": "object"}},
+                  "reconciliation_scope": {"type": ["string", "null"]},
+                  "data_quality_notes": {"type": "array", "items": {"type": "string"}}
+                },
+                "additionalProperties": false
+              },
+              "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
+              "claims": {"type": "array", "items": {"$ref": "#/$defs/claim"}}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "timePoint": {
+            "type": "object",
+            "required": ["value", "precision"],
+            "properties": {
+              "value": {
+                "type": "string",
+                "anyOf": [
+                  {"format": "date-time"},
+                  {"format": "date"}
+                ]
+              },
+              "precision": {"enum": ["source_exact", "date_only", "session", "inferred", "unknown"]},
+              "inference_basis": {"type": "string", "minLength": 1}
+            },
+            "allOf": [
+              {
+                "if": {"properties": {"precision": {"enum": ["session", "inferred"]}}},
+                "then": {"required": ["inference_basis"]}
+              }
+            ],
+            "additionalProperties": false
+          },
+          "source": {
+            "type": "object",
+            "required": ["source_type", "provider_or_publisher"],
+            "properties": {
+              "source_type": {"type": "string", "minLength": 1},
+              "provider_or_publisher": {"type": "string", "minLength": 1},
+              "speaker": {"type": ["string", "null"]},
+              "document_id": {"type": ["string", "null"]},
+              "url_or_external_id": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          },
+          "evidence": {
+            "type": "object",
+            "required": ["evidence_id", "evidence_kind", "subject_refs", "source", "authority_class", "verification", "freshness", "recorded_at"],
+            "properties": {
+              "evidence_id": {"type": "string", "minLength": 1, "maxLength": 256},
+              "evidence_kind": {"type": "string", "minLength": 1},
+              "subject_refs": {"type": "array", "items": {"type": "string"}},
+              "source": {"$ref": "#/$defs/source"},
+              "source_locator": {"type": ["string", "null"]},
+              "content_ref_or_value": {},
+              "authority_class": {"enum": ["primary", "transcript", "official", "secondary", "user_supplied", "derived", "model_generated", "unverified"]},
+              "published_at": {"$ref": "#/$defs/timePoint"},
+              "effective_at": {"$ref": "#/$defs/timePoint"},
+              "observed_at": {"$ref": "#/$defs/timePoint"},
+              "retrieved_at": {"$ref": "#/$defs/timePoint"},
+              "recorded_at": {"$ref": "#/$defs/timePoint"},
+              "content_hash": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+              "verification": {"enum": ["verified", "partial", "unverified", "conflicted", "workflow_verified"]},
+              "freshness": {"enum": ["current", "recent", "stale", "historical", "unknown"]},
+              "lifecycle_scope": {"enum": ["canonical", "context_only"]},
+              "context_id": {"type": ["string", "null"]}
+            },
+            "additionalProperties": false
+          },
+          "claim": {
+            "type": "object",
+            "required": ["claim_id", "statement", "subject_refs", "claim_type", "conditions", "invalidation", "evidence_refs", "derivation_type", "registration_state", "provenance_verification", "semantic_fidelity", "truth_status", "applicability_status"],
+            "properties": {
+              "claim_id": {"type": "string", "minLength": 1, "maxLength": 256},
+              "statement": {"type": "string", "minLength": 1},
+              "subject_refs": {"type": "array", "items": {"type": "string"}},
+              "speaker": {"type": ["string", "null"]},
+              "claim_type": {"type": "string", "minLength": 1},
+              "stance": {"type": ["string", "null"]},
+              "horizon": {"type": ["string", "null"]},
+              "conditions": {"type": "array", "items": {"type": "string"}},
+              "invalidation": {"type": "array", "items": {"type": "string"}},
+              "effective_at": {"$ref": "#/$defs/timePoint"},
+              "valid_until": {"$ref": "#/$defs/timePoint"},
+              "evidence_refs": {"type": "array", "items": {"type": "string", "minLength": 1, "maxLength": 256}, "minItems": 1, "uniqueItems": true},
+              "derivation_type": {"enum": ["direct_statement", "paraphrase", "inference", "derived", "unknown"]},
+              "registration_state": {"enum": ["candidate", "canonical", "rejected", "superseded"]},
+              "provenance_verification": {"enum": ["verified", "partial", "unverified", "conflicted"]},
+              "semantic_fidelity": {"enum": ["direct", "faithful_paraphrase", "inference", "unknown"]},
+              "truth_status": {"enum": ["observed_fact", "attributed_opinion", "estimate", "hypothesis", "contradicted", "unknown"]},
+              "applicability_status": {"enum": ["applicable", "conditional", "stale", "expired", "out_of_scope", "unresolved"]},
+              "confidence": {"enum": ["low", "medium", "high", "unknown"]}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "apply_knowledge_update",
+      "description": "Apply the exact previously staged native Knowledge update after platform/user confirmation and explicit digest-bound confirmation.",
+      "read_only": false,
+      "destructive": false,
+      "requires_confirmation": true,
+      "required_permissions": ["knowledge.commit", "operation.approve"],
+      "input_schema": {
+        "type": "object",
+        "required": ["preview_id", "confirmation"],
+        "properties": {
+          "preview_id": {"type": "string", "minLength": 1},
+          "confirmation": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "preview_portfolio_update",
+      "description": "Build a bounded reconciliation review for one Portfolio observation update without persisting it. Narrow position observations target one existing position by account_id plus either symbol or position_id; they never create a new position.",
+      "read_only": true,
+      "destructive": false,
+      "required_permissions": ["portfolio.update"],
+      "input_schema": {
+        "type": "object",
+        "required": ["update"],
+        "properties": {
+          "update": {
+            "type": "object",
+            "required": ["request_version", "portfolio_id", "snapshot_effective_at", "source_ref"],
+            "properties": {
+              "request_version": {"const": 1},
+              "portfolio_id": {"type": "string", "minLength": 1},
+              "snapshot_effective_at": {"$ref": "#/$defs/timePoint"},
+              "source_ref": {"type": "string", "minLength": 1},
+              "created_at": {"$ref": "#/$defs/timePoint"},
+              "changes": {
+                "type": "object",
+                "properties": {
+                  "position_quantities": {"type": "array", "items": {"$ref": "#/$defs/positionChange"}},
+                  "cash_amounts": {"type": "array", "items": {"$ref": "#/$defs/cashChange"}}
+                },
+                "additionalProperties": false
+              },
+              "observed_portfolio": {
+                "type": "object",
+                "description": "A canonical observed Portfolio object for the same portfolio_id. Use this instead of changes, never together with changes."
+              }
+            },
+            "oneOf": [
+              {"required": ["changes"], "not": {"required": ["observed_portfolio"]}},
+              {"required": ["observed_portfolio"], "not": {"required": ["changes"]}}
+            ],
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "$defs": {
+          "timePoint": {
+            "type": "object",
+            "required": ["value", "precision"],
+            "properties": {
+              "value": {
+                "type": "string",
+                "anyOf": [
+                  {"format": "date-time"},
+                  {"format": "date"}
+                ]
+              },
+              "precision": {"enum": ["source_exact", "date_only", "session", "inferred", "unknown"]},
+              "inference_basis": {"type": "string", "minLength": 1}
+            },
+            "allOf": [
+              {
+                "if": {"properties": {"precision": {"enum": ["session", "inferred"]}}},
+                "then": {"required": ["inference_basis"]}
+              }
+            ],
+            "additionalProperties": false
+          },
+          "positionChange": {
+            "type": "object",
+            "required": ["account_id", "quantity"],
+            "properties": {
+              "account_id": {"type": "string", "minLength": 1},
+              "symbol": {"type": "string", "minLength": 1},
+              "position_id": {"type": "string", "minLength": 1},
+              "quantity": {"type": "number", "minimum": 0}
+            },
+            "oneOf": [
+              {"required": ["symbol"], "not": {"required": ["position_id"]}},
+              {"required": ["position_id"], "not": {"required": ["symbol"]}}
+            ],
+            "additionalProperties": false
+          },
+          "cashChange": {
+            "type": "object",
+            "required": ["cash_id", "amount"],
+            "properties": {
+              "cash_id": {"type": "string", "minLength": 1},
+              "amount": {"type": "number"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "apply_portfolio_update",
+      "description": "Persist the exact previously staged Portfolio reconciliation after platform/user confirmation and explicit candidate-bound confirmation.",
+      "read_only": false,
+      "destructive": false,
+      "requires_confirmation": true,
+      "required_permissions": ["portfolio.update", "operation.approve"],
+      "input_schema": {
+        "type": "object",
+        "required": ["preview_id", "confirmation"],
+        "properties": {
+          "preview_id": {"type": "string", "minLength": 1},
+          "confirmation": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "preview_account_sync",
+      "description": "Read one server-bound provider account through a read-only adapter, validate freshness/completeness/identity, and stage a Portfolio reconciliation preview. The client supplies only internal portfolio_id/account_id and never provider credentials or account numbers.",
+      "read_only": true,
+      "destructive": false,
+      "required_permissions": ["account.read", "portfolio.update"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id", "account_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1},
+          "account_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "apply_account_sync",
+      "description": "Apply the exact previously staged account synchronization candidate after explicit confirmation, without re-reading the provider, then verify authoritative Portfolio read-back.",
+      "read_only": false,
+      "destructive": false,
+      "requires_confirmation": true,
+      "required_permissions": ["portfolio.update", "operation.approve"],
+      "input_schema": {
+        "type": "object",
+        "required": ["preview_id", "confirmation"],
+        "properties": {
+          "preview_id": {"type": "string", "minLength": 1},
+          "confirmation": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "preview_policy_update",
+      "description": "Preview a versioned deep-merge update to one Portfolio advisory Policy without mutating the current active Policy.",
+      "read_only": true,
+      "destructive": false,
+      "required_permissions": ["policy.update"],
+      "input_schema": {
+        "type": "object",
+        "required": ["update"],
+        "properties": {
+          "update": {
+            "type": "object",
+            "required": ["portfolio_id", "rules_patch", "source_ref"],
+            "properties": {
+              "portfolio_id": {"type": "string", "minLength": 1},
+              "rules_patch": {"type": "object", "minProperties": 1},
+              "source_ref": {"type": "string", "minLength": 1},
+              "note": {"type": "string"},
+              "scope": {"type": "string", "minLength": 1}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "apply_policy_update",
+      "description": "Apply the exact staged Policy update after explicit confirmation, supersede the prior active Policy version, and verify read-back.",
+      "read_only": false,
+      "destructive": false,
+      "requires_confirmation": true,
+      "required_permissions": ["policy.update", "operation.approve"],
+      "input_schema": {
+        "type": "object",
+        "required": ["preview_id", "confirmation"],
+        "properties": {
+          "preview_id": {"type": "string", "minLength": 1},
+          "confirmation": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "preview_opinion_weighting_update",
+      "description": "Preview a versioned update to speaker anchor weights or user weighting preferences without mutating the current weighting policy.",
+      "read_only": true,
+      "destructive": false,
+      "required_permissions": ["opinion.update"],
+      "input_schema": {
+        "type": "object",
+        "required": ["update"],
+        "properties": {
+          "update": {
+            "type": "object",
+            "required": ["changes", "source_ref"],
+            "properties": {
+              "changes": {
+                "type": "object",
+                "minProperties": 1,
+                "properties": {
+                  "mode_policies": {"type": "object"},
+                  "user_preferences": {"type": "object"}
+                },
+                "additionalProperties": false
+              },
+              "source_ref": {"type": "string", "minLength": 1},
+              "note": {"type": "string"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "apply_opinion_weighting_update",
+      "description": "Apply the exact staged speaker/opinion weighting update after explicit confirmation and verify read-back.",
+      "read_only": false,
+      "destructive": false,
+      "requires_confirmation": true,
+      "required_permissions": ["opinion.update", "operation.approve"],
+      "input_schema": {
+        "type": "object",
+        "required": ["preview_id", "confirmation"],
+        "properties": {
+          "preview_id": {"type": "string", "minLength": 1},
+          "confirmation": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "get_market_quote",
+      "description": "Return read-only current quote observations for explicit instrument symbols.",
+      "read_only": true,
+      "open_world": true,
+      "required_permissions": ["market.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["symbols"],
+        "properties": {
+          "symbols": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_market_ohlcv",
+      "description": "Return bounded OHLCV observations for explicit instrument symbols.",
+      "read_only": true,
+      "open_world": true,
+      "required_permissions": ["market.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["symbols"],
+        "properties": {
+          "symbols": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1,
+            "maxItems": 20
+          },
+          "interval": {"type": "string", "minLength": 1},
+          "count": {"type": "integer", "minimum": 1, "maximum": 200}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "build_decision_context",
+      "description": "Compose a bounded DecisionContext from explicitly requested capabilities without making an investment judgment.",
+      "read_only": true,
+      "open_world": true,
+      "required_permissions": ["decision.context.build"],
+      "input_schema": {
+        "type": "object",
+        "required": ["request"],
+        "properties": {
+          "request": {"type": "object"},
+          "capability_inputs": {"type": "object"},
+          "required_capabilities": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "maxItems": 50
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "decision-context.schema.json"
+    },
+    {
+      "name": "get_decision_history",
+      "description": "Return bounded canonical Decision history for one explicit portfolio scope from the attached native write store.",
+      "read_only": true,
+      "required_permissions": ["decision.history.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1},
+          "status": {"type": ["string", "null"], "enum": ["active", "superseded", "cancelled", "fulfilled", "historical", "not_adopted", null]},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 200}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_transactions",
+      "description": "Return bounded canonical Transaction history for one explicit portfolio and optional account scope from the attached native write store.",
+      "read_only": true,
+      "required_permissions": ["transaction.history.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1},
+          "account_id": {"type": ["string", "null"]},
+          "limit": {"type": "integer", "minimum": 1, "maximum": 200}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "start_reflection",
+      "description": "Start a PRE or POST Reflection session, optionally linked to a DecisionContext by reference.",
+      "read_only": true,
+      "required_permissions": ["reflection.session.start"],
+      "input_schema": {
+        "type": "object",
+        "required": ["mode"],
+        "properties": {
+          "mode": {"type": "string", "enum": ["pre", "post"]},
+          "context_bundle": {"type": ["object", "null"]}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    }
+  ]
+}

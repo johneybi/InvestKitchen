@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/knowledge-write-request.schema.json",
+  "title": "InvestKitchen Native Knowledge Commit Request v1",
+  "type": "object",
+  "required": ["protocol_version", "request_type", "generation_id", "generated_at", "current_state", "evidence", "claims"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "request_type": {"const": "knowledge.commit"},
+    "generation_id": {"$ref": "common.schema.json#/$defs/id"},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "current_state": {
+      "type": "object",
+      "properties": {
+        "as_of": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "valid_until": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "freshness_status": {"enum": ["current", "recent", "stale", "historical", "unknown"]},
+        "situational_usable": {"type": "boolean"},
+        "market_state": {"type": ["string", "null"]},
+        "stance": {"type": ["string", "null"]},
+        "confidence": {"enum": ["low", "medium", "high", "unknown"]},
+        "summary": {"type": ["string", "null"]},
+        "action_bias": {"type": "array", "items": {"type": "string"}},
+        "confirmation_conditions": {"type": "array", "items": {"type": "string"}},
+        "invalidation_conditions": {"type": "array", "items": {"type": "string"}},
+        "outlook": {"type": "array", "items": {"type": "object"}},
+        "reconciliation_scope": {"type": ["string", "null"]},
+        "data_quality_notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {"type": "array", "items": {"$ref": "evidence-claim.schema.json#/$defs/evidence"}},
+    "claims": {"type": "array", "items": {"$ref": "evidence-claim.schema.json#/$defs/claim"}}
+  },
+  "additionalProperties": false
+}

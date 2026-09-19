@@ -1,0 +1,278 @@
+{
+  "protocol_version": "1.0-draft",
+  "instance_id": "fixture-full-reference",
+  "profile": "full_reference",
+  "kernel_capabilities": ["decision.context"],
+  "extensions": [
+    {
+      "extension_id": "official.compat.portfolio-legacy",
+      "name": "Legacy Portfolio Compatibility Adapter",
+      "publisher": "TradeMind",
+      "version": "0.1.0",
+      "package_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "system_adapter",
+      "provides": [
+        {
+          "capability_id": "portfolio.state",
+          "contract_version": "1.0-draft",
+          "input_contract": "portfolio-state-request",
+          "output_contract": "portfolio.schema.json",
+          "execution_mode": "builtin"
+        }
+      ],
+      "requires": [],
+      "permissions": ["legacy.portfolio.read"],
+      "network": {"mode": "none", "allowed_endpoints": []},
+      "secret_requirements": [],
+      "storage": {
+        "private_storage_namespace": null,
+        "canonical_direct_access": true,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["portfolio_fact"]
+    },
+    {
+      "extension_id": "official.compat.knowledge-legacy",
+      "name": "Legacy Knowledge Compatibility Adapter",
+      "publisher": "TradeMind",
+      "version": "0.1.0",
+      "package_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "system_adapter",
+      "provides": [
+        {
+          "capability_id": "knowledge.current",
+          "contract_version": "1.0-draft",
+          "input_contract": "knowledge-current-request",
+          "output_contract": "knowledge-current-view",
+          "execution_mode": "builtin"
+        },
+        {
+          "capability_id": "knowledge.search",
+          "contract_version": "1.0-draft",
+          "input_contract": "knowledge-search-request",
+          "output_contract": "knowledge-search-result",
+          "execution_mode": "builtin"
+        }
+      ],
+      "requires": [],
+      "permissions": ["legacy.knowledge.read"],
+      "network": {"mode": "none", "allowed_endpoints": []},
+      "secret_requirements": [],
+      "storage": {
+        "private_storage_namespace": null,
+        "canonical_direct_access": true,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["knowledge_claim"]
+    },
+    {
+      "extension_id": "official.native.history-reference",
+      "name": "Native History Reference Adapter",
+      "publisher": "TradeMind",
+      "version": "0.1.0",
+      "package_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "system_adapter",
+      "provides": [
+        {
+          "capability_id": "decision.history",
+          "contract_version": "1.0-draft",
+          "input_contract": "decision-history-request",
+          "output_contract": "history.schema.json#/$defs/decisionHistory",
+          "execution_mode": "builtin"
+        },
+        {
+          "capability_id": "transaction.history",
+          "contract_version": "1.0-draft",
+          "input_contract": "transaction-history-request",
+          "output_contract": "history.schema.json#/$defs/transactionHistory",
+          "execution_mode": "builtin"
+        }
+      ],
+      "requires": [],
+      "permissions": ["decision.history.read", "transaction.history.read"],
+      "network": {"mode": "none", "allowed_endpoints": []},
+      "secret_requirements": [],
+      "storage": {
+        "private_storage_namespace": "native.history.reference",
+        "canonical_direct_access": true,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["decision_record", "transaction_record"]
+    },
+    {
+      "extension_id": "official.native.advisory-state",
+      "name": "Native Advisory State",
+      "publisher": "InvestKitchen",
+      "version": "0.1.0",
+      "package_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "system_adapter",
+      "provides": [
+        {
+          "capability_id": "openitem.current",
+          "contract_version": "1.0-draft",
+          "input_contract": "openitem-current-request",
+          "output_contract": "capability-result.schema.json",
+          "execution_mode": "builtin"
+        },
+        {
+          "capability_id": "policy.current",
+          "contract_version": "1.0-draft",
+          "input_contract": "policy-current-request",
+          "output_contract": "capability-result.schema.json",
+          "execution_mode": "builtin"
+        },
+        {
+          "capability_id": "plan.active",
+          "contract_version": "1.0-draft",
+          "input_contract": "plan-active-request",
+          "output_contract": "capability-result.schema.json",
+          "execution_mode": "builtin"
+        },
+        {
+          "capability_id": "opinion.weighting.current",
+          "contract_version": "1.0-draft",
+          "input_contract": "opinion-weighting-current-request",
+          "output_contract": "capability-result.schema.json",
+          "execution_mode": "builtin"
+        },
+        {
+          "capability_id": "opinion.consensus",
+          "contract_version": "1.0-draft",
+          "input_contract": "opinion-consensus-request",
+          "output_contract": "capability-result.schema.json",
+          "execution_mode": "builtin"
+        }
+      ],
+      "requires": [],
+      "permissions": ["openitem.read", "policy.read", "plan.read", "opinion.read"],
+      "network": {"mode": "none", "allowed_endpoints": []},
+      "secret_requirements": [],
+      "storage": {
+        "private_storage_namespace": "native.advisory.state",
+        "canonical_direct_access": true,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["unresolved_data_gap", "user_policy_record", "advisory_plan"]
+    },
+    {
+      "extension_id": "official.market.reference",
+      "name": "Reference Market Provider",
+      "publisher": "TradeMind",
+      "version": "0.1.0",
+      "package_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "provider",
+      "provides": [
+        {
+          "capability_id": "market.quote",
+          "contract_version": "1.0-draft",
+          "input_contract": "market-request",
+          "output_contract": "market-observation",
+          "execution_mode": "sandbox_worker"
+        },
+        {
+          "capability_id": "market.ohlcv",
+          "contract_version": "1.0-draft",
+          "input_contract": "market-request",
+          "output_contract": "market-observation",
+          "execution_mode": "sandbox_worker"
+        }
+      ],
+      "requires": [],
+      "permissions": ["market.read", "network.outbound", "secret.use"],
+      "network": {"mode": "allowlist", "allowed_endpoints": ["provider.example"]},
+      "secret_requirements": [{"secret_scope": "market.provider", "purpose": "read-only market data"}],
+      "storage": {
+        "private_storage_namespace": "market.reference",
+        "canonical_direct_access": false,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["market_observation"]
+    },
+    {
+      "extension_id": "official.reflection.cbt",
+      "name": "CBT Reflection",
+      "publisher": "TradeMind",
+      "version": "0.1.0",
+      "package_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "reflection",
+      "provides": [
+        {
+          "capability_id": "reflection.session",
+          "contract_version": "1.0-draft",
+          "input_contract": "reflection-session-input",
+          "output_contract": "reflection-session",
+          "execution_mode": "sandbox_worker"
+        }
+      ],
+      "requires": [
+        {"capability_id": "decision.history", "compatible_contract_versions": ">=1.0-draft", "optional": true},
+        {"capability_id": "portfolio.summary", "compatible_contract_versions": ">=1.0-draft", "optional": true}
+      ],
+      "permissions": ["reflection.write", "reflection.read"],
+      "network": {"mode": "none", "allowed_endpoints": []},
+      "secret_requirements": [],
+      "storage": {
+        "private_storage_namespace": "reflection.cbt",
+        "canonical_direct_access": false,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["reflection_session"]
+    }
+  ],
+  "capability_bindings": {
+    "portfolio.state": "official.compat.portfolio-legacy",
+    "knowledge.current": "official.compat.knowledge-legacy",
+    "knowledge.search": "official.compat.knowledge-legacy",
+    "decision.history": "official.native.history-reference",
+    "transaction.history": "official.native.history-reference",
+    "openitem.current": "official.native.advisory-state",
+    "policy.current": "official.native.advisory-state",
+    "plan.active": "official.native.advisory-state",
+    "opinion.weighting.current": "official.native.advisory-state",
+    "opinion.consensus": "official.native.advisory-state",
+    "market.quote": "official.market.reference",
+    "market.ohlcv": "official.market.reference",
+    "reflection.session": "official.reflection.cbt"
+  },
+  "client_exposure": {
+    "market.quote": "supported",
+    "market.ohlcv": "supported",
+    "reflection.session": "supported",
+    "portfolio.state": "supported",
+    "knowledge.current": "supported",
+    "knowledge.search": "supported",
+    "decision.history": "supported",
+    "transaction.history": "supported",
+    "openitem.current": "supported",
+    "policy.current": "supported",
+    "plan.active": "supported",
+    "opinion.weighting.current": "supported",
+    "opinion.consensus": "supported",
+    "decision.context": "supported",
+    "monitor.create": "disabled"
+  }
+}

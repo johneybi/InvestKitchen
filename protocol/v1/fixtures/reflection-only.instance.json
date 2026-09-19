@@ -1,0 +1,54 @@
+{
+  "protocol_version": "1.0-draft",
+  "instance_id": "fixture-reflection-only",
+  "profile": "reflection_only",
+  "kernel_capabilities": [],
+  "extensions": [
+    {
+      "extension_id": "official.reflection.cbt",
+      "name": "CBT Reflection",
+      "publisher": "TradeMind",
+      "version": "0.1.0",
+      "package_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "signature": null,
+      "protocol_compatibility": ">=1.0-draft <2.0",
+      "trust_level": "official",
+      "extension_type": "reflection",
+      "provides": [
+        {
+          "capability_id": "reflection.session",
+          "contract_version": "1.0-draft",
+          "input_contract": "reflection-session-input",
+          "output_contract": "reflection-session",
+          "execution_mode": "sandbox_worker"
+        }
+      ],
+      "requires": [
+        {
+          "capability_id": "decision.history",
+          "compatible_contract_versions": ">=1.0-draft",
+          "optional": true
+        },
+        {
+          "capability_id": "portfolio.summary",
+          "compatible_contract_versions": ">=1.0-draft",
+          "optional": true
+        }
+      ],
+      "permissions": ["reflection.write"],
+      "network": {"mode": "none", "allowed_endpoints": []},
+      "secret_requirements": [],
+      "storage": {
+        "private_storage_namespace": "reflection.cbt",
+        "canonical_direct_access": false,
+        "cross_extension_storage_access": false
+      },
+      "background": {"required": false, "trigger_types": [], "minimum_interval_seconds": null, "side_effects": []},
+      "authority_outputs": ["reflection_session"]
+    }
+  ],
+  "capability_bindings": {"reflection.session": "official.reflection.cbt"},
+  "client_exposure": {
+    "reflection.session": "supported"
+  }
+}

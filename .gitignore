@@ -1,0 +1,45 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Runtime state and personal data never belong in this repository.
+state/
+runtime-data/
+backups/
+secrets/
+private/
+
+# Local credentials / environment overrides.
+.env
+.env.*
+!.env.example
+*.key
+*.token
+*.secret
+deploy.env
+runtime-deploy.env
+deploy/synology/control-plane-api-key
+deploy/synology/runtime-deploy.env
+
+# Legacy projections may contain real portfolio/knowledge data.
+protocol/v1/fixtures/generated/
+
+# Local operator artifacts.
+*.log
+*.pid
+*.sock
+reconciliation-candidates/
+*.reconciliation-candidate.json
+
+# Built deployment images are transferred out-of-band, never committed.
+dist/
+*.tar
+*.tar.sha256
+
+# Python packaging artifacts
+*.egg-info/

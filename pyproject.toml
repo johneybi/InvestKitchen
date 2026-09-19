@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=70"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "investkitchen"
+version = "0.1.0"
+description = "Self-hosted runtime and protocol boundary for InvestKitchen"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+  "jsonschema>=4.20",
+  "referencing>=0.35",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["protocol/v1/tests"]
+addopts = "-ra"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["protocol*"]
+exclude = ["protocol.v1.tests*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+"protocol.v1" = ["*.md"]
+"protocol.v1.deployment" = ["*.json"]
+"protocol.v1.fixtures" = ["*.json"]
+"protocol.v1.schemas" = ["*.json"]
+"protocol.v1.session_authority" = ["*.md"]
+"protocol.v1.session_authority.schemas" = ["*.json"]
+"protocol.v1.transport" = ["*.json"]

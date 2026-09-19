@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio.schema.json",
+  "title": "TradeMind Portfolio Projection v1",
+  "type": "object",
+  "required": ["protocol_version", "portfolio_id", "generated_at", "accounts", "positions", "cash", "transactions", "completeness"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+    "display_name": {"type": "string"},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "accounts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/account"}
+    },
+    "positions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/position"}
+    },
+    "cash": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/cashObservation"}
+    },
+    "transactions": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/transaction"}
+    },
+    "policies": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/policy"}
+    },
+    "completeness": {"$ref": "#/$defs/completeness"},
+    "migration_gaps": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/gap"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "assetRef": {
+      "type": "object",
+      "required": ["display_name", "asset_type"],
+      "properties": {
+        "asset_id": {"$ref": "common.schema.json#/$defs/id"},
+        "asset_type": {"enum": ["stock", "etf", "fund", "index", "cash", "bond", "commodity", "crypto", "other", "unknown"]},
+        "symbol": {"type": ["string", "null"]},
+        "venue": {"type": ["string", "null"]},
+        "currency": {"anyOf": [{"$ref": "common.schema.json#/$defs/currency"}, {"type": "null"}]},
+        "display_name": {"type": "string", "minLength": 1},
+        "provider_refs": {"type": "object", "additionalProperties": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "account": {
+      "type": "object",
+      "required": ["account_id", "portfolio_id", "display_name", "status", "constraints"],
+      "properties": {
+        "account_id": {"$ref": "common.schema.json#/$defs/id"},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "display_name": {"type": "string", "minLength": 1},
+        "provider_id": {"type": ["string", "null"]},
+        "account_type": {"type": ["string", "null"]},
+        "base_currency": {"anyOf": [{"$ref": "common.schema.json#/$defs/currency"}, {"type": "null"}]},
+        "role": {"enum": ["core", "tactical", "mixed", "custom", "unknown"]},
+        "status": {"enum": ["active", "inactive", "unavailable"]},
+        "constraints": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "position": {
+      "type": "object",
+      "required": ["position_id", "portfolio_id", "account_id", "asset", "quantity", "quantity_status", "quantity_basis", "authority", "source_evidence"],
+      "properties": {
+        "position_id": {"$ref": "common.schema.json#/$defs/id"},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "account_id": {"$ref": "common.schema.json#/$defs/id"},
+        "asset": {"$ref": "#/$defs/assetRef"},
+        "quantity": {"type": "number"},
+        "quantity_status": {"enum": ["confirmed", "confirmed_minimum", "estimated_current", "unknown"]},
+        "quantity_basis": {"enum": ["direct_observation", "execution_adjusted", "balance_reconciled", "carried_forward", "user_confirmation", "unknown"]},
+        "cost_basis_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
+        "avg_cost_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
+        "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "recorded_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "source_evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/id"}, "uniqueItems": true},
+        "authority": {"enum": ["portfolio_fact", "estimated_portfolio_state", "unknown"]},
+        "state": {"enum": ["open", "closed", "unknown"]}
+      },
+      "additionalProperties": false
+    },
+    "cashObservation": {
+      "type": "object",
+      "required": ["cash_id", "portfolio_id", "account_id", "currency", "cash_kind", "value", "authority", "source_evidence"],
+      "properties": {
+        "cash_id": {"$ref": "common.schema.json#/$defs/id"},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "account_id": {"$ref": "common.schema.json#/$defs/id"},
+        "currency": {"$ref": "common.schema.json#/$defs/currency"},
+        "cash_kind": {"enum": ["nominal_balance", "settled_cash", "buying_power", "withdrawable_cash", "displayed_settlement", "provider_specific", "unknown"]},
+        "provider_label": {"type": ["string", "null"]},
+        "value": {"$ref": "common.schema.json#/$defs/money"},
+        "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "recorded_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "source_evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/id"}, "uniqueItems": true},
+        "authority": {"enum": ["portfolio_fact", "estimated_portfolio_state", "unknown"]}
+      },
+      "additionalProperties": false
+    },
+    "transaction": {
+      "type": "object",
+      "required": ["transaction_id", "portfolio_id", "account_id", "transaction_type", "effective_at", "occurrence_status", "detail_status", "execution_basis", "source_type", "source_evidence"],
+      "properties": {
+        "transaction_id": {"$ref": "common.schema.json#/$defs/id"},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "account_id": {"$ref": "common.schema.json#/$defs/id"},
+        "asset": {"$ref": "#/$defs/assetRef"},
+        "transaction_type": {"enum": ["trade", "cash_transfer", "deposit", "withdrawal", "dividend", "fee", "tax", "corporate_action", "correction", "other"]},
+        "side": {"type": ["string", "null"]},
+        "quantity": {"type": ["number", "null"]},
+        "price": {"anyOf": [{"$ref": "common.schema.json#/$defs/money"}, {"type": "null"}]},
+        "amount": {"anyOf": [{"$ref": "common.schema.json#/$defs/money"}, {"type": "null"}]},
+        "effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "recorded_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "occurrence_status": {"enum": ["confirmed", "candidate", "rejected", "superseded"]},
+        "detail_status": {"enum": ["complete", "partial", "unknown"]},
+        "execution_basis": {"enum": ["provider_fill", "official_notice", "explicit_user_confirmation", "balance_reconciliation", "derived_correction", "other"]},
+        "source_type": {"type": "string", "minLength": 1},
+        "source_evidence": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/id"}, "uniqueItems": true},
+        "provider_execution_id": {"type": ["string", "null"]},
+        "transfer_group_id": {"type": ["string", "null"]},
+        "lineage": {"type": ["object", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "policy": {
+      "type": "object",
+      "required": ["policy_id", "portfolio_id", "scope", "version", "status", "rules", "authority"],
+      "properties": {
+        "policy_id": {"$ref": "common.schema.json#/$defs/id"},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "scope": {"type": ["object", "string"]},
+        "version": {"type": "string", "minLength": 1},
+        "status": {"enum": ["draft", "active", "inactive", "superseded", "expired"]},
+        "effective_from": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "effective_until": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "rules": {"type": "object"},
+        "authority": {"type": "string", "minLength": 1},
+        "supersedes": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "completenessState": {"enum": ["complete", "partial", "conflicted", "stale", "unknown"]},
+    "completeness": {
+      "type": "object",
+      "required": ["holdings", "cash", "valuation", "fx", "transactions", "accounts"],
+      "properties": {
+        "holdings": {"$ref": "#/$defs/completenessState"},
+        "cash": {"$ref": "#/$defs/completenessState"},
+        "valuation": {"$ref": "#/$defs/completenessState"},
+        "fx": {"$ref": "#/$defs/completenessState"},
+        "transactions": {"$ref": "#/$defs/completenessState"},
+        "accounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["account_id", "holdings", "cash"],
+            "properties": {
+              "account_id": {"$ref": "common.schema.json#/$defs/id"},
+              "holdings": {"$ref": "#/$defs/completenessState"},
+              "cash": {"$ref": "#/$defs/completenessState"},
+              "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

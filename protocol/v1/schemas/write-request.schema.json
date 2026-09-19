@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/write-request.schema.json",
+  "title": "TradeMind Write Request v1",
+  "oneOf": [
+    {"$ref": "#/$defs/decisionCreate"},
+    {"$ref": "#/$defs/transactionRecord"}
+  ],
+  "$defs": {
+    "decisionCreate": {
+      "type": "object",
+      "required": ["protocol_version", "request_type", "portfolio_id", "account_ids", "subject_refs", "statement", "action_intent", "conditions", "invalidation_conditions", "decided_at", "authority_basis"],
+      "properties": {
+        "protocol_version": {"const": "1.0-draft"},
+        "request_type": {"const": "decision.create"},
+        "portfolio_id": {"anyOf": [{"$ref": "common.schema.json#/$defs/id"}, {"type": "null"}]},
+        "account_ids": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/id"}, "uniqueItems": true},
+        "subject_refs": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "statement": {"type": "string", "minLength": 1},
+        "action_intent": {"$ref": "decision-record.schema.json#/properties/action_intent"},
+        "conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "invalidation_conditions": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "rationale_summary": {"type": ["string", "null"]},
+        "source_context_ref": {"type": ["string", "null"]},
+        "decided_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "authority_basis": {"enum": ["explicit_user_decision", "assistant_draft_requires_user_approval"]}
+      },
+      "additionalProperties": false
+    },
+    "transactionRecord": {
+      "type": "object",
+      "required": [
+        "protocol_version",
+        "request_type",
+        "portfolio_id",
+        "account_id",
+        "transaction_type",
+        "effective_at",
+        "detail_status",
+        "occurrence_attestation"
+      ],
+      "properties": {
+        "protocol_version": {"const": "1.0-draft"},
+        "request_type": {"const": "transaction.record"},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "account_id": {"$ref": "common.schema.json#/$defs/id"},
+        "transaction_type": {"enum": ["trade", "cash_transfer", "deposit", "withdrawal", "dividend", "fee", "tax", "corporate_action", "correction", "other"]},
+        "asset": {"anyOf": [{"$ref": "portfolio.schema.json#/$defs/assetRef"}, {"type": "null"}]},
+        "side": {"type": ["string", "null"]},
+        "quantity": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "price": {"anyOf": [{"$ref": "common.schema.json#/$defs/money"}, {"type": "null"}]},
+        "amount": {"anyOf": [{"$ref": "common.schema.json#/$defs/money"}, {"type": "null"}]},
+        "effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "detail_status": {"enum": ["complete", "partial", "unknown"]},
+        "provider_execution_id": {"type": ["string", "null"]},
+        "transfer_group_id": {"type": ["string", "null"]},
+        "correction_of": {"type": ["string", "null"]},
+        "occurrence_attestation": {
+          "type": "object",
+          "required": ["attestation_type", "attested_at"],
+          "properties": {
+            "attestation_type": {"enum": ["explicit_user_statement", "provider_execution", "official_notice", "balance_reconciliation", "correction_evidence"]},
+            "source_ref": {"type": ["string", "null"]},
+            "statement_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+            "attested_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"transaction_type": {"const": "trade"}}},
+          "then": {"required": ["asset", "side", "quantity"]}
+        },
+        {
+          "if": {"properties": {"transaction_type": {"const": "correction"}}},
+          "then": {"required": ["correction_of"]}
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

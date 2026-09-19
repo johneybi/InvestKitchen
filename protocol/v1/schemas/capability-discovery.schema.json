@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/capability-discovery.schema.json",
+  "title": "TradeMind Capability Discovery v1",
+  "type": "object",
+  "required": ["protocol_version", "instance_id", "profile", "capabilities"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "instance_id": {"$ref": "common.schema.json#/$defs/id"},
+    "profile": {"type": "string", "minLength": 1},
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["capability", "installed", "ready", "client_exposure", "client_usable", "reason"],
+        "properties": {
+          "capability": {"type": "string", "minLength": 1},
+          "installed": {"type": "boolean"},
+          "ready": {"type": "boolean"},
+          "client_exposure": {"enum": ["supported", "installed_but_client_unsupported", "disabled"]},
+          "client_usable": {"type": "boolean"},
+          "reason": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

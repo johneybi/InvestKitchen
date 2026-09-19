@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/mutation-preview.schema.json",
+  "title": "TradeMind Mutation Preview v1",
+  "type": "object",
+  "required": ["protocol_version", "resource_type", "operation", "preview", "approval_required", "approval", "apply_state"],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "resource_type": {"enum": ["decision", "transaction", "knowledge"]},
+    "operation": {"$ref": "operation.schema.json#/$defs/operation"},
+    "preview": {"$ref": "operation.schema.json#/$defs/preview"},
+    "approval_required": {"const": true},
+    "approval": {"type": "null"},
+    "apply_state": {"const": "not_applied"}
+  },
+  "additionalProperties": false
+}

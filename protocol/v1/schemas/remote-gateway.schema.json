@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/remote-gateway.schema.json",
+  "title": "TradeMind Authenticated Remote Gateway Contract v1",
+  "$defs": {
+    "wireRequest": {
+      "type": "object",
+      "required": ["request_id", "instance_id", "method", "params", "issued_at", "expires_at", "nonce"],
+      "properties": {
+        "request_id": {"$ref": "common.schema.json#/$defs/id"},
+        "instance_id": {"$ref": "common.schema.json#/$defs/id"},
+        "method": {"enum": ["tools.list", "tools.call"]},
+        "params": {"type": "object"},
+        "issued_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "expires_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "nonce": {"type": "string", "minLength": 16, "maxLength": 256}
+      },
+      "additionalProperties": false
+    },
+    "authenticatedPrincipal": {
+      "type": "object",
+      "required": ["subject_user_id", "client_id", "credential_binding_id", "authentication_event_id", "authenticated_at", "expires_at"],
+      "properties": {
+        "subject_user_id": {"$ref": "common.schema.json#/$defs/id"},
+        "client_id": {"$ref": "common.schema.json#/$defs/id"},
+        "credential_binding_id": {"$ref": "common.schema.json#/$defs/id"},
+        "authentication_event_id": {"$ref": "common.schema.json#/$defs/id"},
+        "authenticated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "expires_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+      },
+      "additionalProperties": false
+    },
+    "accessGrant": {
+      "type": "object",
+      "required": ["grant_id", "instance_id", "subject_user_id", "client_id", "credential_binding_id", "permissions", "portfolio_scope", "tool_allowlist", "request_policy", "policy_version", "issued_at", "expires_at"],
+      "properties": {
+        "grant_id": {"$ref": "common.schema.json#/$defs/id"},
+        "instance_id": {"$ref": "common.schema.json#/$defs/id"},
+        "subject_user_id": {"$ref": "common.schema.json#/$defs/id"},
+        "client_id": {"$ref": "common.schema.json#/$defs/id"},
+        "credential_binding_id": {"$ref": "common.schema.json#/$defs/id"},
+        "permissions": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "portfolio_scope": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "tool_allowlist": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "request_policy": {
+          "type": "object",
+          "required": ["max_ttl_seconds", "max_future_skew_seconds"],
+          "properties": {
+            "max_ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 3600},
+            "max_future_skew_seconds": {"type": "integer", "minimum": 0, "maximum": 300}
+          },
+          "additionalProperties": false
+        },
+        "policy_version": {"type": "string", "minLength": 1},
+        "issued_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "expires_at": {"$ref": "common.schema.json#/$defs/timePoint"}
+      },
+      "additionalProperties": false
+    },
+    "rateLimitSignal": {
+      "type": "object",
+      "required": ["status", "policy_id", "scope"],
+      "properties": {
+        "status": {"enum": ["ok", "limited"]},
+        "policy_id": {"type": "string", "minLength": 1},
+        "scope": {"enum": ["instance", "client", "tool"]},
+        "retry_after_seconds": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "authorizationDecision": {
+      "type": "object",
+      "required": ["decision_id", "request_id", "allowed", "reason_code", "tool_name", "permissions_evaluated", "portfolio_scope_evaluated", "request_digest", "decided_at", "audit_ref"],
+      "properties": {
+        "decision_id": {"$ref": "common.schema.json#/$defs/id"},
+        "request_id": {"$ref": "common.schema.json#/$defs/id"},
+        "allowed": {"type": "boolean"},
+        "reason_code": {
+          "enum": [
+            "allowed",
+            "malformed_request",
+            "instance_mismatch",
+            "principal_expired",
+            "grant_expired",
+            "request_expired",
+            "request_not_yet_valid",
+            "request_ttl_exceeded",
+            "client_mismatch",
+            "subject_mismatch",
+            "credential_binding_mismatch",
+            "replay_detected",
+            "tool_not_found",
+            "tool_not_allowed",
+            "permission_denied",
+            "portfolio_scope_denied",
+            "portfolio_scope_conflict",
+            "rate_limited"
+          ]
+        },
+        "tool_name": {"type": ["string", "null"]},
+        "permissions_evaluated": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "portfolio_scope_evaluated": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "request_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "decided_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "audit_ref": {"$ref": "common.schema.json#/$defs/id"}
+      },
+      "additionalProperties": false
+    },
+    "auditEvent": {
+      "type": "object",
+      "required": ["audit_event_id", "request_id", "instance_id", "subject_user_id", "client_id", "credential_binding_ref", "tool_name", "permissions", "portfolio_ids", "authorization", "reason_code", "request_digest", "occurred_at", "result_status"],
+      "properties": {
+        "audit_event_id": {"$ref": "common.schema.json#/$defs/id"},
+        "request_id": {"$ref": "common.schema.json#/$defs/id"},
+        "instance_id": {"$ref": "common.schema.json#/$defs/id"},
+        "subject_user_id": {"$ref": "common.schema.json#/$defs/id"},
+        "client_id": {"$ref": "common.schema.json#/$defs/id"},
+        "credential_binding_ref": {"$ref": "common.schema.json#/$defs/id"},
+        "tool_name": {"type": ["string", "null"]},
+        "permissions": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "portfolio_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "authorization": {"enum": ["allowed", "denied"]},
+        "reason_code": {"type": "string", "minLength": 1},
+        "request_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "occurred_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "result_status": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "remoteResponse": {
+      "type": "object",
+      "required": ["request_id", "ok", "security"],
+      "properties": {
+        "request_id": {"type": ["string", "null"]},
+        "ok": {"type": "boolean"},
+        "result": {},
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": {"type": "string", "minLength": 1},
+            "message": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "security": {
+          "type": "object",
+          "required": ["audit_ref", "authorization", "rate_limit"],
+          "properties": {
+            "audit_ref": {"$ref": "common.schema.json#/$defs/id"},
+            "authorization": {"enum": ["allowed", "denied"]},
+            "rate_limit": {"$ref": "#/$defs/rateLimitSignal"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"ok": {"const": true}}},
+          "then": {"required": ["result"], "not": {"required": ["error"]}}
+        },
+        {
+          "if": {"properties": {"ok": {"const": false}}},
+          "then": {"required": ["error"], "not": {"required": ["result"]}}
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

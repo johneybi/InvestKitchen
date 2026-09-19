@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/personal-data-manifest.schema.json",
+  "title": "TradeMind Personal Data Bundle Manifest v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "bundle_format_version",
+    "bundle_id",
+    "created_at",
+    "source_kind",
+    "portfolio_ids",
+    "files"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "bundle_format_version": {"const": 1},
+    "bundle_id": {"$ref": "common.schema.json#/$defs/id"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "source_kind": {"enum": ["legacy_migration", "native_export"]},
+    "portfolio_ids": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/id"},
+      "uniqueItems": true
+    },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["logical_name", "relative_path", "sha256", "size_bytes", "content_type"],
+        "properties": {
+          "logical_name": {"type": "string", "minLength": 1},
+          "relative_path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "content_type": {"enum": ["portfolio", "knowledge_current", "knowledge_projection"]},
+          "portfolio_id": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

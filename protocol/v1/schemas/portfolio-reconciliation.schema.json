@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-reconciliation.schema.json",
+  "title": "InvestKitchen Portfolio Reconciliation Candidate v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "reconciliation_version",
+    "candidate_id",
+    "candidate_digest",
+    "portfolio_id",
+    "created_at",
+    "snapshot_effective_at",
+    "source_ref",
+    "status",
+    "current_portfolio_digest",
+    "observed_portfolio_digest",
+    "journal_cursor",
+    "summary",
+    "differences",
+    "gaps",
+    "reconciled_portfolio",
+    "checkpoint_draft",
+    "acceptance_required"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "reconciliation_version": {"const": 1},
+    "candidate_id": {"$ref": "common.schema.json#/$defs/id"},
+    "candidate_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "snapshot_effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "source_ref": {"$ref": "common.schema.json#/$defs/id"},
+    "status": {"const": "review_required"},
+    "current_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "observed_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "journal_cursor": {
+      "type": "object",
+      "required": ["through_commit_id", "event_count", "prefix_digest"],
+      "properties": {
+        "through_commit_id": {"type": ["string", "null"]},
+        "event_count": {"type": "integer", "minimum": 0},
+        "prefix_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["account_changes", "position_changes", "cash_changes", "gap_count"],
+      "properties": {
+        "account_changes": {"type": "integer", "minimum": 0},
+        "position_changes": {"type": "integer", "minimum": 0},
+        "cash_changes": {"type": "integer", "minimum": 0},
+        "gap_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "differences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["domain", "change_type", "identity", "field_changes"],
+        "properties": {
+          "domain": {"enum": ["account", "position", "cash", "transactions", "policies"]},
+          "change_type": {"enum": ["added", "removed", "changed", "ignored"]},
+          "identity": {"type": "object"},
+          "field_changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["field", "current", "observed"],
+              "properties": {
+                "field": {"type": "string", "minLength": 1},
+                "current": {},
+                "observed": {}
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {"$ref": "common.schema.json#/$defs/gap"}
+    },
+    "reconciled_portfolio": {"$ref": "portfolio.schema.json"},
+    "checkpoint_draft": {"$ref": "portfolio-checkpoint.schema.json"},
+    "acceptance_required": {"const": true}
+  },
+  "additionalProperties": false
+}

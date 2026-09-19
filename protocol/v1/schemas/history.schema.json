@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/history.schema.json",
+  "title": "TradeMind Native History Projection v1",
+  "oneOf": [
+    {"$ref": "#/$defs/decisionHistory"},
+    {"$ref": "#/$defs/transactionHistory"}
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["protocol_version", "history_type", "portfolio_id", "generated_at", "items", "count", "total_matching", "truncated"],
+      "properties": {
+        "protocol_version": {"const": "1.0-draft"},
+        "history_type": {"enum": ["decision", "transaction"]},
+        "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+        "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "items": {"type": "array"},
+        "count": {"type": "integer", "minimum": 0},
+        "total_matching": {"type": "integer", "minimum": 0},
+        "truncated": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    },
+    "decisionHistory": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {
+          "type": "object",
+          "properties": {
+            "history_type": {"const": "decision"},
+            "status": {"type": ["string", "null"]},
+            "items": {"type": "array", "items": {"$ref": "decision-record.schema.json"}}
+          },
+          "required": ["status"]
+        }
+      ]
+    },
+    "transactionHistory": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {
+          "type": "object",
+          "properties": {
+            "history_type": {"const": "transaction"},
+            "account_id": {"type": ["string", "null"]},
+            "items": {"type": "array", "items": {"$ref": "portfolio.schema.json#/$defs/transaction"}}
+          },
+          "required": ["account_id"]
+        }
+      ]
+    }
+  }
+}

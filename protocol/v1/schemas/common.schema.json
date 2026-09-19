@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/common.schema.json",
+  "title": "TradeMind Protocol v1 Common Primitives",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$"
+    },
+    "timePoint": {
+      "type": "object",
+      "required": ["value", "precision"],
+      "properties": {
+        "value": {
+          "type": "string",
+          "anyOf": [
+            {"format": "date-time"},
+            {"format": "date"}
+          ]
+        },
+        "precision": {
+          "enum": ["source_exact", "date_only", "session", "inferred", "unknown"]
+        },
+        "inference_basis": {"type": "string", "minLength": 1}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"precision": {"enum": ["session", "inferred"]}}},
+          "then": {"required": ["inference_basis"]}
+        }
+      ],
+      "additionalProperties": false
+    },
+    "money": {
+      "type": "object",
+      "required": ["amount", "currency", "value_basis"],
+      "properties": {
+        "amount": {"type": "number"},
+        "currency": {"$ref": "#/$defs/currency"},
+        "value_basis": {
+          "enum": ["observed", "derived", "reconstructed", "manual_stale", "unknown"]
+        },
+        "as_of": {"$ref": "#/$defs/timePoint"},
+        "source_evidence": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenanceRef": {
+      "type": "object",
+      "required": ["source_type"],
+      "properties": {
+        "source_type": {"type": "string", "minLength": 1},
+        "source_id": {"$ref": "#/$defs/id"},
+        "locator": {"type": "string", "minLength": 1},
+        "producer": {"type": "string", "minLength": 1},
+        "producer_version": {"type": "string", "minLength": 1},
+        "content_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "gap": {
+      "type": "object",
+      "required": ["gap_code", "reason", "impact", "recoverable"],
+      "properties": {
+        "gap_code": {"type": "string", "minLength": 1},
+        "required_capability": {"type": "string", "minLength": 1},
+        "scope": {"type": ["object", "string", "null"]},
+        "reason": {"type": "string", "minLength": 1},
+        "impact": {"type": "string", "minLength": 1},
+        "recoverable": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "producer": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "version": {"type": "string", "minLength": 1},
+        "extension_id": {"$ref": "#/$defs/id"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

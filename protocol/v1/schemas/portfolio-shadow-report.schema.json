@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/portfolio-shadow-report.schema.json",
+  "title": "InvestKitchen Privacy-safe Portfolio Shadow Report v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "shadow_report_version",
+    "generated_at",
+    "privacy_mode",
+    "input_fingerprints",
+    "summary",
+    "portfolios"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "shadow_report_version": {"const": 1},
+    "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "privacy_mode": {"const": "summary_only"},
+    "input_fingerprints": {
+      "type": "object",
+      "required": ["personal_manifest_sha256", "native_write_journal_present", "native_write_journal_sha256", "native_write_event_count"],
+      "properties": {
+        "personal_manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "native_write_journal_present": {"type": "boolean"},
+        "native_write_journal_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "native_write_event_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["portfolio_count", "exact_count", "divergent_count", "blocked_count"],
+      "properties": {
+        "portfolio_count": {"type": "integer", "minimum": 0},
+        "exact_count": {"type": "integer", "minimum": 0},
+        "divergent_count": {"type": "integer", "minimum": 0},
+        "blocked_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "portfolios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "portfolio_ref",
+          "status",
+          "production_snapshot_digest",
+          "production_state_digest",
+          "shadow_state_digest",
+          "seed_checkpoint_ref",
+          "safe_cursor_event_count",
+          "native_transaction_delta_count",
+          "differences",
+          "gap_count",
+          "gap_codes",
+          "block_code"
+        ],
+        "properties": {
+          "portfolio_ref": {"type": "string", "pattern": "^portfolio-shadow:[0-9a-f]{16}$"},
+          "status": {"enum": ["exact", "divergent", "blocked"]},
+          "production_snapshot_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "production_state_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "shadow_state_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+          "seed_checkpoint_ref": {"type": ["string", "null"]},
+          "safe_cursor_event_count": {"type": ["integer", "null"], "minimum": 0},
+          "native_transaction_delta_count": {"type": "integer", "minimum": 0},
+          "differences": {
+            "type": "object",
+            "required": ["account_changes", "position_changes", "cash_changes"],
+            "properties": {
+              "account_changes": {"type": "integer", "minimum": 0},
+              "position_changes": {"type": "integer", "minimum": 0},
+              "cash_changes": {"type": "integer", "minimum": 0}
+            },
+            "additionalProperties": false
+          },
+          "gap_count": {"type": "integer", "minimum": 0},
+          "gap_codes": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+          "block_code": {"type": ["string", "null"]}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/backup-manifest.schema.json",
+  "title": "InvestKitchen Runtime Backup Manifest v1/v2",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "backup_format_version",
+    "backup_id",
+    "instance_id",
+    "created_at",
+    "consistency",
+    "layout",
+    "files",
+    "creation_checks"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "backup_format_version": {"enum": [1, 2]},
+    "backup_id": {"$ref": "common.schema.json#/$defs/id"},
+    "instance_id": {"$ref": "common.schema.json#/$defs/id"},
+    "created_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "consistency": {"enum": ["dual_journal_locked_snapshot", "triple_journal_locked_snapshot"]},
+    "layout": {
+      "type": "object",
+      "required": ["native_write_journal", "approval_journal"],
+      "properties": {
+        "native_write_journal": {"const": "native-write/write-journal.jsonl"},
+        "native_knowledge_journal": {"const": "native-write/knowledge-journal.jsonl"},
+        "approval_journal": {"const": "approvals/approval-journal.jsonl"},
+        "portfolio_checkpoint_journal": {"const": "portfolio-checkpoints/checkpoints.jsonl"}
+      },
+      "additionalProperties": false
+    },
+    "files": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": ["logical_name", "relative_path", "sha256", "size_bytes", "jsonl_records"],
+        "properties": {
+          "logical_name": {"enum": ["native_write_journal", "native_knowledge_journal", "approval_journal", "portfolio_checkpoint_journal"]},
+          "relative_path": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "size_bytes": {"type": "integer", "minimum": 0},
+          "jsonl_records": {"type": "integer", "minimum": 0}
+        },
+        "additionalProperties": false
+      }
+    },
+    "creation_checks": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "jsonl_parse",
+          "write_journal_invariants",
+          "approval_journal_invariants",
+          "approval_write_linkage",
+          "knowledge_journal_invariants",
+          "knowledge_approval_linkage",
+          "checkpoint_journal_invariants",
+          "checkpoint_write_cursor_linkage"
+        ]
+      },
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"backup_format_version": {"const": 1}}, "required": ["backup_format_version"]},
+      "then": {
+        "properties": {
+          "consistency": {"const": "dual_journal_locked_snapshot"},
+          "files": {
+            "minItems": 2,
+            "maxItems": 2,
+            "not": {
+              "contains": {
+                "type": "object",
+                "properties": {"logical_name": {"const": "portfolio_checkpoint_journal"}},
+                "required": ["logical_name"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"backup_format_version": {"const": 2}}, "required": ["backup_format_version"]},
+      "then": {
+        "properties": {
+          "consistency": {"const": "triple_journal_locked_snapshot"},
+          "layout": {"required": ["portfolio_checkpoint_journal"]},
+          "files": {
+            "minItems": 3,
+            "maxItems": 4,
+            "contains": {
+              "type": "object",
+              "properties": {"logical_name": {"const": "portfolio_checkpoint_journal"}},
+              "required": ["logical_name"]
+            }
+          },
+          "creation_checks": {
+            "allOf": [
+              {"contains": {"const": "checkpoint_journal_invariants"}},
+              {"contains": {"const": "checkpoint_write_cursor_linkage"}}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "files": {
+            "contains": {
+              "type": "object",
+              "properties": {"logical_name": {"const": "native_knowledge_journal"}},
+              "required": ["logical_name"]
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "layout": {"required": ["native_knowledge_journal"]},
+          "creation_checks": {
+            "allOf": [
+              {"contains": {"const": "knowledge_journal_invariants"}},
+              {"contains": {"const": "knowledge_approval_linkage"}}
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

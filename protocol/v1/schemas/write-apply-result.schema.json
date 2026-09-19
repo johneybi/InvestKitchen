@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/write-apply-result.schema.json",
+  "title": "TradeMind Native Write Apply Result v1",
+  "type": "object",
+  "required": [
+    "protocol_version",
+    "resource_type",
+    "resource",
+    "receipt",
+    "replayed",
+    "dedupe_basis"
+  ],
+  "properties": {
+    "protocol_version": {"const": "1.0-draft"},
+    "resource_type": {"enum": ["decision", "transaction"]},
+    "resource": {
+      "oneOf": [
+        {"$ref": "decision-record.schema.json"},
+        {"$ref": "portfolio.schema.json#/$defs/transaction"}
+      ]
+    },
+    "receipt": {"$ref": "operation.schema.json#/$defs/receipt"},
+    "replayed": {"type": "boolean"},
+    "dedupe_basis": {"enum": ["none", "idempotency", "transaction_identity"]}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"resource_type": {"const": "decision"}}},
+      "then": {"properties": {"resource": {"$ref": "decision-record.schema.json"}}}
+    },
+    {
+      "if": {"properties": {"resource_type": {"const": "transaction"}}},
+      "then": {"properties": {"resource": {"$ref": "portfolio.schema.json#/$defs/transaction"}}}
+    }
+  ],
+  "additionalProperties": false
+}
