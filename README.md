@@ -105,6 +105,8 @@ Never commit a real credential or generated personal-data bundle. See [`SECURITY
 
 ## Documentation
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the product repository, private Synology workspace, GitHub workflow, and deployment status rules.
+
 - [`docs/product-plan.md`](docs/product-plan.md) — product definition and decision loops
 - [`docs/architecture.md`](docs/architecture.md) — runtime/client authority boundaries
 - [`docs/native-knowledge-write.md`](docs/native-knowledge-write.md) — native Knowledge write model
