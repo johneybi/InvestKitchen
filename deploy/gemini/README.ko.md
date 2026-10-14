@@ -5,8 +5,12 @@
 운영 NAS 디렉터리를 연결하지 않는다. 상시 운영 배포는 별도 작업이다.
 
 2026-10-14 검증: 로컬 TLS와 임시 공개 HTTPS 주소에서 실제 로그인·PKCE·서명된 읽기
-권한, MCP 조회, 쓰기 거부, 범위 밖 포트폴리오 조회 거부를 확인했다. Gemini UI에서
-정확한 콜백을 확인했으며, Gemini의 자격증명 입력과 도구 호출은 별도 완료 단계다.
+권한, MCP 조회, 쓰기 거부, 범위 밖 조회 거부를 확인했다. 실제 Gemini 계정에 OAuth로
+InvestKitchen을 등록하고 읽기 도구 6개를 발견했다. 영어 화면의 Argon 모드에서
+`list_portfolios`, `get_portfolio_state`, `get_current_knowledge`를 호출해 빈
+`portfolio-alpha`와 합성 Knowledge를 확인했으며, 인증된 HTTP 성공 응답도 확인했다.
+한국어 채팅에서는 커넥터가 목록에 나타나지 않았고, Pro 모드는 일반 오류를 반환했다.
+이 결과는 운영 배포나 개인 포트폴리오 연결 검증과는 별도다.
 
 [Cloudflare 공식 안내](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)에
 따르면 Quick Tunnel은 계정이나 도메인 없이 사용할 수 있지만 주소가 임시이며 SSE를
@@ -107,11 +111,18 @@ PYTHONPATH=. /tmp/investkitchen-gemini-venv/bin/python deploy/gemini/verify_tria
 Gemini가 접근하는 스킬·연결된 서비스의 정보도 이 MCP 서버에 전달될 수 있다는
 안내다. 서버의 합성 데이터 읽기 권한은 서버가 반환하는 정보의 범위를 제한하며,
 Gemini가 보내는 정보의 범위를 제한하지는 않는다. 별도의 동의 내용을 확인한 뒤
-연결하고, 이 시험에는 합성 데이터 조회 요청만 사용한다.
+연결하고, 이 시험에는 합성 데이터 조회 요청만 사용한다. Google 계정 연결 동의와
+합성 계정 로그인을 마치면, 도구 목록을 확인하고 앱 이름 `InvestKitchen`으로 저장한다.
 
 연결 완료 표시와 실제 도구 호출을 확인한 뒤에만 Gemini 연결 검증 완료로 기록한다.
 `investkitchen-read` 스킬 등록과 MCP 앱 연결은 별도다. 시험 포트폴리오가 비어 있다는
 답을 확인하고, 실제 보유 종목처럼 해석하지 않는다. 시장 제공자는 이 구성에서 꺼져 있다.
+
+등록은 됐지만 채팅에서 도구가 보이지 않으면
+[영어 Gemini 화면](https://gemini.google.com/app?hl=en)의 `@` 목록을 확인한다. 이번 시험에서는
+한국어 화면에 스킬만 나타났고, 영어 화면에는 **Connectors → InvestKitchen**이
+나타났다. 커넥터를 선택한 뒤 합성 조회 요청을 입력한다. 화면 언어 선택은 지역 자격을
+변경하는 방법이 아니다.
 
 ## 도메인 없이 로컬 HTTPS부터 검증하는 방법
 

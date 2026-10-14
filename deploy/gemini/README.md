@@ -9,6 +9,15 @@ only an empty synthetic portfolio. Generated credentials and authentication DBs
 must stay outside Git and outside production runtime/data/secret/backup trees.
 The trial does not import personal data or mount existing production state.
 
+Verified on 2026-10-14: local TLS and temporary public HTTPS OAuth/MCP tests
+passed, including rejected writes and out-of-scope reads. The actual Gemini
+account completed OAuth, registered InvestKitchen, discovered six read tools, and
+called `list_portfolios`, `get_portfolio_state` and `get_current_knowledge` in the
+English UI with Argon. Results showed only the empty `portfolio-alpha` and
+synthetic Knowledge; authenticated HTTP success was also observed. Korean chat
+omitted the connector from its mention menu, and Pro returned a generic error.
+These results do not verify production deployment or personal-portfolio access.
+
 Build identified product commits with `build-images.sh <commit>` on a trusted
 builder. The script sends an allowlisted Git archive, never the current operator
 workspace. Bootstrap a new external directory with `trial.py bootstrap --out
@@ -48,6 +57,12 @@ services, may be sent to this MCP server. The server's read-only synthetic grant
 limits what the server can return; it does not restrict what Gemini may send.
 Review that separate consent before connecting, and use only synthetic prompts
 for this trial.
+
+If the app is registered but missing from the chat mention menu, check the
+English Gemini page at `https://gemini.google.com/app?hl=en`. In the trial, that
+page exposed the connector while the Korean page exposed only the skill. Type
+`@InvestKitchen` and choose **Connectors → InvestKitchen** before entering the
+synthetic read prompt. This does not establish regional eligibility.
 
 Stop only the trial services to roll back. Preserve volumes and external
 credentials unless the operator deliberately removes them. A restarted Quick

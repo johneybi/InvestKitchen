@@ -9,10 +9,14 @@ as the existing clients. The ChatGPT tunnel and stdio adapter retain their own
 deployment lifecycle.
 
 Status: implemented and tested with synthetic data through self-hosted Keycloak,
-local TLS and a temporary public HTTPS tunnel. Real PKCE tokens authorize MCP
-reads; write calls and out-of-scope portfolios are refused. Production ingress,
-NAS deployment and authenticated Gemini tool use are not yet verified. A merged
-PR alone does not change those statuses. See the [domain-free trial runbook](../deploy/gemini/README.md).
+local TLS and a temporary public HTTPS tunnel. On 2026-10-14, the actual Gemini
+account completed OAuth, discovered six read tools, and called `list_portfolios`,
+`get_portfolio_state` and `get_current_knowledge` in the English UI with Argon.
+The empty `portfolio-alpha` and synthetic Knowledge results were checked along
+with authenticated HTTP success. Server tests also refuse writes and out-of-scope
+portfolios. Production ingress, NAS deployment and personal-portfolio Gemini use
+remain unverified. A merged PR alone does not change those statuses. See the
+[domain-free trial runbook](../deploy/gemini/README.md).
 
 ## Surface and boundaries
 
@@ -44,7 +48,17 @@ currently specifies US availability, English, a personal Google account,
 age 18+ and Keep Activity enabled. Confirm that the actual account offers Custom
 apps before provisioning ingress. These restrictions are separate from whether
 the InvestKitchen implementation works. An account's custom-app registration UI
-and redirect-URI copy control have been observed; authenticated tool use remains unverified.
+and redirect-URI copy control were observed; authenticated synthetic reads
+subsequently succeeded in that account's English UI with Argon. A Pro attempt
+returned a generic error, so the trial does not claim Pro compatibility.
+
+In the observed account, registration and authenticated tool discovery succeeded
+in Korean, but the custom connector was absent from the Korean chat mention
+menu. The English page (`https://gemini.google.com/app?hl=en`) exposed
+**Connectors → InvestKitchen** when typing `@InvestKitchen`. Select the connector
+entry, not the similarly named skill. Registration alone is not a chat tool-use
+check. This page-local language selection does not change the Google account
+language or establish regional eligibility.
 
 In Gemini web, open Connected Apps, add the public MCP URL, and complete the OAuth
 flow. If Dynamic Client Registration is unavailable, Google's UI permits entering
