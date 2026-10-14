@@ -15,11 +15,14 @@ import anyio
 import uvicorn
 from mcp.server import Server
 from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.routes import cors_middleware
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, ListToolsResult, TextContent, Tool
 from pydantic import AnyHttpUrl
 from starlette.datastructures import MutableHeaders
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from protocol.v1.runtime.reference_composition import build_reference_gateway
 from protocol.v1.security.oauth_resource import JWTTokenVerifier, load_oauth_resource
@@ -83,6 +86,26 @@ def create_http_app(gateway, verifier: JWTTokenVerifier):
             allowed_hosts=[resource.netloc], allowed_origins=[origin],
         ),
     )
+    # OAuth issuer identifiers must match discovery and signed tokens exactly.
+    # AnyHttpUrl adds '/' to origin-only URLs, so do not serialize that normalized
+    # value into the protected-resource metadata supplied by the SDK.
+    async def resource_metadata(request):
+        return JSONResponse({
+            "resource": verifier.config.resource_url,
+            "authorization_servers": [verifier.config.issuer_url],
+            "scopes_supported": list(verifier.config.required_scopes),
+            "bearer_methods_supported": ["header"],
+        })
+
+    metadata_path = "/.well-known/oauth-protected-resource/mcp"
+    if not any(getattr(route, "path", None) == metadata_path for route in app.routes):
+        raise RuntimeError("Protected resource metadata route is missing")
+    app.router.routes = [
+        Route(metadata_path, endpoint=cors_middleware(resource_metadata, ["GET", "OPTIONS"]),
+              methods=["GET", "OPTIONS"])
+        if getattr(route, "path", None) == metadata_path else route
+        for route in app.routes
+    ]
     # Authenticated reads and errors must not be cached by an ingress proxy.
     app.add_middleware(NoStoreMiddleware)
     return app

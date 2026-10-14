@@ -194,6 +194,23 @@ def test_provider_refresh_scopes_are_advertised_and_enforced_without_more_data_a
         assert denied.json()["result"]["isError"] is True
 
 
+@pytest.mark.parametrize("issuer", ["https://auth.example.test", "https://auth.example.test/",
+                                   "https://auth.example.test:8443/issuer"])
+def test_discovery_preserves_exact_issuer_identifier_and_token_validation(signing_key, issuer):
+    config = OAuthResourceConfig.model_validate({**_config().model_dump(), "issuer_url": issuer})
+    verifier = JWTTokenVerifier(config, _jwks(signing_key))
+    with TestClient(create_http_app(_gateway(), verifier), base_url="https://mcp.example.test") as client:
+        metadata = client.get("/.well-known/oauth-protected-resource/mcp", headers={"Origin": "https://client.example.test"})
+        assert metadata.json()["authorization_servers"] == [issuer]
+        assert metadata.headers["Cache-Control"] == "no-store"
+        assert metadata.headers["Access-Control-Allow-Origin"] == "*"
+        exact = _post(client, "tools/list", headers={**HEADERS, "Authorization": "Bearer " + _jwt(signing_key, iss=issuer)})
+        assert exact.status_code == 200
+        changed_issuer = issuer.rstrip("/") if issuer.endswith("/") else issuer + "/"
+        denied = _post(client, "tools/list", headers={**HEADERS, "Authorization": "Bearer " + _jwt(signing_key, iss=changed_issuer)})
+        assert denied.status_code == 401
+
+
 def test_discovery_and_direct_reads_obey_server_owned_scope(signing_key):
     surface = RemoteReadSurface(_gateway(), _config())
     token = _access(signing_key)
