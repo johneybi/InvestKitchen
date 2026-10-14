@@ -44,6 +44,7 @@ class OAuthResourceConfig(BaseModel):
     issuer_url: str
     resource_url: str
     client_id_claim: str = Field(default="client_id", min_length=1)
+    scope_claim: Literal["scope", "scp"] = "scope"
     required_scopes: tuple[Literal["investkitchen.read", "openid", "offline_access"], ...] = (READ_SCOPE,)
     grants: tuple[ReadGrant, ...] = Field(min_length=1)
 
@@ -120,16 +121,25 @@ class JWTTokenVerifier:
             )
             subject = claims["sub"]
             client_id = claims[self.config.client_id_claim]
-            scope = claims.get("scope", "")
+            raw_scope = claims.get(self.config.scope_claim, "" if self.config.scope_claim == "scope" else [])
+            if self.config.scope_claim == "scp":
+                if (not isinstance(raw_scope, list)
+                        or any(not isinstance(item, str) or not item or any(ch.isspace() for ch in item)
+                               for item in raw_scope)):
+                    return None
+                scopes = raw_scope
+            else:
+                if not isinstance(raw_scope, str):
+                    return None
+                scopes = raw_scope.split()
             if (not isinstance(subject, str) or not isinstance(client_id, str)
-                    or not isinstance(scope, str)
                     or any(not isinstance(claims[field], int) or isinstance(claims[field], bool)
                            for field in ("iat", "exp"))
                     or self.config.grant_for(subject, client_id) is None):
                 return None
             return AccessToken(
                 token=token, subject=subject, client_id=client_id,
-                scopes=scope.split(), expires_at=claims["exp"],
+                scopes=scopes, expires_at=claims["exp"],
                 resource=self.config.resource_url, claims={"iss": claims["iss"]},
             )
         except (jwt.PyJWTError, ValueError, TypeError):

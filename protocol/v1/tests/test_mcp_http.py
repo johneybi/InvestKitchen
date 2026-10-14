@@ -130,6 +130,28 @@ def test_tokens_require_rsa_signature_and_known_key(signing_key):
         assert asyncio.run(verifier.verify_token(token)) is None
 
 
+def test_provider_array_scope_claim_requires_explicit_configuration_and_valid_members(signing_key):
+    config = OAuthResourceConfig.model_validate({**_config().model_dump(), "scope_claim": "scp"})
+    verifier = JWTTokenVerifier(config, _jwks(signing_key))
+    token = _jwt(signing_key, scope=None, scp=[READ_SCOPE, "openid", "offline_access"])
+    access = asyncio.run(verifier.verify_token(token))
+    assert access is not None and access.scopes == [READ_SCOPE, "openid", "offline_access"]
+    assert asyncio.run(_verifier(signing_key).verify_token(token)) is None
+    with TestClient(create_http_app(_gateway(), verifier), base_url="https://mcp.example.test") as client:
+        headers = {**HEADERS, "Authorization": "Bearer " + token}
+        assert _post(client, "tools/list", headers=headers).status_code == 200
+        denied = _post(client, "tools/call", {"name": "get_portfolio_state", "arguments": {
+            "portfolio_id": "portfolio-beta"}}, headers=headers)
+        assert denied.json()["result"]["isError"] is True
+        # An unselected string claim cannot add scopes to an array-scope token.
+        other = _jwt(signing_key, scope=READ_SCOPE, scp=["openid"])
+        assert _post(client, "tools/list", headers={**HEADERS, "Authorization": "Bearer " + other}).status_code == 403
+    for invalid in [None, READ_SCOPE, [1], [None], [""], ["investkitchen.read openid"]]:
+        assert asyncio.run(verifier.verify_token(_jwt(signing_key, scp=invalid))) is None
+    with pytest.raises(ValidationError):
+        OAuthResourceConfig.model_validate({**_config().model_dump(), "scope_claim": "permissions"})
+
+
 def test_configuration_rejects_write_grants_duplicate_identity_and_private_keys(signing_key):
     for update in [{"issuer_url": "http://auth.example.test"}, {"resource_url": "https://mcp.example.test/other"},
                    {"client_id_claim": "sub"}, {"resource_url": "https://owner:password@mcp.example.test/mcp"}]:

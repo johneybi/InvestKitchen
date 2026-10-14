@@ -133,6 +133,11 @@ Configure that provider for:
   `client_id_claim` to the provider's documented alternative such as `azp`), and
   a space-separated `scope` containing `investkitchen.read`.
 
+For providers such as Authelia that put scopes in a JWT `scp` array, explicitly
+set `"scope_claim": "scp"`. Every array member must be a nonempty scope string
+without whitespace. The default remains the string `scope` claim; the verifier
+does not combine claims or use token-supplied permissions as a data grant.
+
 `required_scopes` defaults to `["investkitchen.read"]`. For a provider requiring
 OIDC scopes to issue refresh tokens, set
 `"required_scopes": ["investkitchen.read", "openid", "offline_access"]` in the

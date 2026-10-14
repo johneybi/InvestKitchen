@@ -192,6 +192,11 @@ Knowledge 권한은 인스턴스 단위이며, 포트폴리오별 격리를 제�
   `azp` 같은 다른 이름으로 지정할 수 있다.
 - 스코프: 공백으로 구분된 `scope`에 `investkitchen.read` 포함.
 
+Authelia처럼 JWT의 `scp` 배열에 스코프를 넣는 제공자는
+`"scope_claim": "scp"`를 명시한다. 배열 항목은 공백이 없는 비어 있지 않은 문자열이어야
+한다. 기본값은 문자열 `scope`이며, 두 클레임을 합치거나 토큰이 주장하는 추가 권한을
+데이터 grant로 사용하지 않는다.
+
 기본 `required_scopes`는 `["investkitchen.read"]`다. 갱신 토큰을 받기 위해 OIDC
 스코프가 필요한 제공자에서는 운영자 설정에
 `"required_scopes": ["investkitchen.read", "openid", "offline_access"]`를 지정한다.
