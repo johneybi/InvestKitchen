@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import uuid
@@ -8,6 +7,8 @@ from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
+
+from protocol.v1.runtime.journal_lock import journal_lock
 
 from protocol.v1.adapters.common import PROTOCOL_VERSION, canonical_json, digest, timepoint
 from protocol.v1.runtime.native_write_store import ApplyRejected, ApplyValidation, validate_apply
@@ -291,21 +292,17 @@ def build_knowledge_preview(
 class NativeKnowledgeStore:
     """Small append-only native Knowledge overlay for personal advisory context."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, read_only: bool = False) -> None:
+        self.read_only = read_only
         self.root = root.resolve()
         self.journal_path = self.root / "knowledge-journal.jsonl"
         self.lock_path = self.root / ".knowledge-journal.lock"
 
     @contextmanager
     def _locked(self, *, exclusive: bool) -> Iterator[None]:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
-        with os.fdopen(fd, "r+") as handle:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
-            try:
-                yield
-            finally:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        with journal_lock(self.root, self.lock_path, exclusive=exclusive,
+                          read_only=self.read_only):
+            yield
 
     def _read_unlocked(self) -> list[dict[str, Any]]:
         if not self.journal_path.exists():
@@ -380,6 +377,8 @@ class NativeKnowledgeStore:
         validation: ApplyValidation,
         committed_at: datetime,
     ) -> dict[str, Any]:
+        if self.read_only:
+            raise PermissionError("Read-only journal cannot be changed")
         mutation = preview.get("preview") if isinstance(preview, dict) else None
         if not isinstance(mutation, dict) or preview.get("resource_type") != "knowledge":
             raise KnowledgeRejected("knowledge_preview_invalid")

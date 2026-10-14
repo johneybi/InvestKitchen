@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import uuid
@@ -11,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from protocol.v1.adapters.common import PROTOCOL_VERSION, canonical_json, digest, timepoint
+from protocol.v1.runtime.journal_lock import journal_lock
 
 
 ApprovalVerifier = Callable[[dict[str, Any], dict[str, Any], dict[str, Any]], dict[str, Any]]
@@ -297,24 +297,17 @@ class NativeWriteStore:
     not a final database selection.
     """
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, read_only: bool = False) -> None:
+        self.read_only = read_only
         self.root = root.resolve()
         self.journal_path = self.root / "write-journal.jsonl"
         self.lock_path = self.root / ".write-journal.lock"
 
     @contextmanager
     def _locked(self, *, exclusive: bool) -> Iterator[None]:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        lock_fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
-        try:
-            with os.fdopen(lock_fd, "r+") as lock_file:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
-                try:
-                    yield
-                finally:
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-        except Exception:
-            raise
+        with journal_lock(self.root, self.lock_path, exclusive=exclusive,
+                          read_only=self.read_only):
+            yield
 
     def _read_unlocked(self) -> list[dict[str, Any]]:
         if not self.journal_path.exists():
@@ -524,6 +517,8 @@ class NativeWriteStore:
         validation: ApplyValidation,
         committed_at: datetime,
     ) -> dict[str, Any]:
+        if self.read_only:
+            raise PermissionError("Read-only journal cannot be changed")
         operation = preview["operation"]
         mutation = preview["preview"]
         action = str(operation["action"])

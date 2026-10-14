@@ -92,6 +92,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oauth-config", type=Path, required=True)
     parser.add_argument("--public-jwks", type=Path, required=True)
+    parser.add_argument("--check-config", action="store_true",
+                        help="Validate configuration and read-only stores without listening")
     parser.add_argument("--host", choices=("127.0.0.1", "::1"), default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8090)
     parser.add_argument("--runtime-root", type=Path, default=Path(__file__).resolve().parents[3])
@@ -111,6 +113,7 @@ def main() -> int:
         verifier = load_oauth_resource(args.oauth_config, args.public_jwks)
         gateway = build_reference_gateway(
             runtime_root=args.runtime_root, manifest=args.manifest,
+            read_only_stores=True,
             personal_data_root=args.personal_data_root,
             native_store_root=args.native_store_root, advisory_state_root=args.advisory_state_root,
             historical_decision_root=args.historical_decision_root,
@@ -119,9 +122,12 @@ def main() -> int:
             market_provider=args.market_provider, market_secret_file=args.market_secret_file,
         )
         app = create_http_app(gateway, verifier)
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError):
         sys.stderr.write("InvestKitchen HTTP MCP configuration error\n")
         return 2
+    if args.check_config:
+        print("InvestKitchen HTTP MCP preflight: PASS")
+        return 0
     uvicorn.run(app, host=args.host, port=args.port, access_log=False, log_level="warning", proxy_headers=False)
     return 0
 
