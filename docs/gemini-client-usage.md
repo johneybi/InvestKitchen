@@ -1,5 +1,7 @@
 # Gemini client — read-only development profile
 
+[한국어 가이드](gemini-client-usage.ko.md)
+
 Tracked by [issue #3](https://github.com/johneybi/InvestKitchen/issues/3).
 This profile adds an OAuth-protected Streamable HTTP resource server and a
 portable skill. It reuses the same InvestKitchen Gateway and authoritative state
@@ -33,7 +35,7 @@ and the `2025-11-25` initialize/session protocol on `/mcp`. Legacy sessions are
 bounded and tied to their authenticated principal. Responses use `no-store`;
 tool discovery uses private caching with zero TTL. Requests are capped at 64 KiB.
 
-## Gemini availability and skill installation
+## Gemini availability and app connection
 
 Google's [custom app documentation](https://support.google.com/gemini/answer/17209137)
 currently specifies US availability, English, a personal Google account,
@@ -47,12 +49,32 @@ operator-provisioned OAuth client credentials under Advanced features. Record
 the actual authenticated client ID in the server-side grant; do not assume a
 display name such as "Gemini" is authenticated identity.
 
-Upload [`skills/investkitchen-read/SKILL.md`](../skills/investkitchen-read/SKILL.md)
-from the Gemini Skills page, or upload its containing folder. Google's
-[skills guide](https://support.google.com/gemini/answer/17094296) documents that
-format and disallows scripts that make external internet requests. This skill
-uses the connected MCP app and contains no scripts or private data. Skills are
-rolling out separately from custom app availability.
+## Register the skill; ZIP is optional
+
+The connected app supplies authenticated tools; the skill supplies instructions
+for using them. Registering a skill does not connect the server, log in or grant
+portfolio access. Complete the app connection separately.
+
+For manual registration in Gemini web, use **Settings → Skills → Create
+manually** and fill in the following fields:
+
+| Field | Value from [`SKILL.md`](../skills/investkitchen-read/SKILL.md) |
+| --- | --- |
+| Name | `investkitchen-read` |
+| Description | The YAML `description` value |
+| Instructions | The Markdown body below the closing YAML `---`; omit the YAML block |
+
+The [Korean guide](gemini-client-usage.ko.md#스킬-수동-등록-권장) also includes
+Korean text ready to paste into those fields.
+
+Google's [skills guide](https://support.google.com/gemini/answer/17094296?co=GENIE.Platform%3DDesktop)
+also supports uploading a `SKILL.md`, its folder or a ZIP. Review the imported
+fields before creating the skill. ZIP is an optional distribution container;
+the source is the text file above. The previously provided archive contains only
+`investkitchen-read/SKILL.md`, so uploading that file directly has the same content.
+This skill has no scripts, credentials or private data. Skills are rolling out
+separately from custom apps; check the actual account's UI. This guide targets
+Gemini Apps, and does not install or configure Gemini CLI.
 
 ## OAuth configuration
 
