@@ -42,6 +42,13 @@ settings, then sign in using the synthetic owner. The external
 connection are separate. Verify actual tool use before claiming a live Gemini
 connection; local tests alone do not establish client compatibility.
 
+After Next, Gemini also shows a custom-app trust and privacy consent screen.
+It explains that information available to Gemini, including skills and connected
+services, may be sent to this MCP server. The server's read-only synthetic grant
+limits what the server can return; it does not restrict what Gemini may send.
+Review that separate consent before connecting, and use only synthetic prompts
+for this trial.
+
 Stop only the trial services to roll back. Preserve volumes and external
 credentials unless the operator deliberately removes them. A restarted Quick
 Tunnel gets a new origin; create a fresh trial rather than silently rewriting an
