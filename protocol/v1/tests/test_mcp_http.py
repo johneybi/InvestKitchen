@@ -146,6 +146,32 @@ def test_configuration_rejects_write_grants_duplicate_identity_and_private_keys(
         JWTTokenVerifier(_config(), {"keys": _jwks(signing_key)["keys"] * 2})
 
 
+@pytest.mark.parametrize("scopes", [[], ["openid"], [READ_SCOPE, READ_SCOPE],
+                                  [READ_SCOPE, "investkitchen.write"]])
+def test_provider_scopes_cannot_remove_read_scope_or_add_writes(scopes):
+    with pytest.raises(ValidationError):
+        OAuthResourceConfig.model_validate({**_config().model_dump(), "required_scopes": scopes})
+
+
+def test_provider_refresh_scopes_are_advertised_and_enforced_without_more_data_access(signing_key):
+    scopes = [READ_SCOPE, "openid", "offline_access"]
+    config = OAuthResourceConfig.model_validate({**_config().model_dump(), "required_scopes": scopes})
+    verifier = JWTTokenVerifier(config, _jwks(signing_key))
+    with TestClient(create_http_app(_gateway(), verifier), base_url="https://mcp.example.test") as client:
+        metadata = client.get("/.well-known/oauth-protected-resource/mcp").json()
+        assert metadata["scopes_supported"] == scopes
+        insufficient = _post(client, "server/discover", headers={
+            **HEADERS, "Authorization": "Bearer " + _jwt(signing_key)})
+        assert insufficient.status_code == 403
+        headers = {**HEADERS, "Authorization": "Bearer " + _jwt(signing_key, scope=" ".join(scopes))}
+        listed = _post(client, "tools/list", headers=headers)
+        assert listed.status_code == 200
+        assert all(tool["annotations"]["readOnlyHint"] for tool in listed.json()["result"]["tools"])
+        denied = _post(client, "tools/call", {"name": "get_portfolio_state", "arguments": {
+            "portfolio_id": "portfolio-beta"}}, headers=headers)
+        assert denied.json()["result"]["isError"] is True
+
+
 def test_discovery_and_direct_reads_obey_server_owned_scope(signing_key):
     surface = RemoteReadSurface(_gateway(), _config())
     token = _access(signing_key)

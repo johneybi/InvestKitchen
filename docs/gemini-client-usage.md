@@ -18,6 +18,32 @@ portfolios. Production ingress, NAS deployment and personal-portfolio Gemini use
 remain unverified. A merged PR alone does not change those statuses. See the
 [domain-free trial runbook](../deploy/gemini/README.md).
 
+## Transition to authoritative NAS data
+
+The synthetic trial establishes authenticated Gemini tool use. Actual use needs
+a separately managed read-only HTTP service on the NAS, connected to the existing
+authoritative stores, stable HTTPS and an approved real-owner grant. Do not copy
+production data into a trial directory or describe synthetic results as production.
+
+On 2026-10-14, an internal NAS preflight read real checkpoint-authoritative
+Portfolio and native Knowledge through an identified product commit. Owner-only
+scope, denial of another portfolio, absent write tools and unchanged source
+records passed. This establishes data compatibility, not transmission to Google
+or an operational Gemini connection.
+
+An existing Tailscale NAS can consider [Funnel](https://tailscale.com/docs/features/tailscale-funnel)
+for stable `*.ts.net` HTTPS on a separate allowed port, preserving existing private
+Serve routes. Public exposure requires operator authorization and the MCP still
+requires OAuth. Measure capacity before adding an identity server to a small NAS.
+[Authelia](https://www.authelia.com/configuration/identity-providers/openid-connect/clients/)
+is a lightweight candidate with SQLite, RS256 JWT access tokens, exact resource
+audience and PKCE S256. Login, token exchange/refresh and actual Gemini compatibility
+are separate checks; the Keycloak trial does not prove another provider's Gemini use.
+
+Approve the real portfolio scope and instance-wide Knowledge access before
+activation. Prepare service supervision, backups and rollback, then verify
+actual Gemini tool calls and refresh before recording operational completion.
+
 ## Surface and boundaries
 
 The explicit surface contains nine tools: `get_capabilities`, `list_portfolios`,
@@ -106,6 +132,14 @@ Configure that provider for:
 - integer `iat`/`exp`, a `sub`, a client identity claim (default `client_id`; set
   `client_id_claim` to the provider's documented alternative such as `azp`), and
   a space-separated `scope` containing `investkitchen.read`.
+
+`required_scopes` defaults to `["investkitchen.read"]`. For a provider requiring
+OIDC scopes to issue refresh tokens, set
+`"required_scopes": ["investkitchen.read", "openid", "offline_access"]` in the
+operator configuration. Resource metadata advertises these scopes and HTTP
+requests must contain all of them. The read scope cannot be removed and write
+scopes cannot be added. Additional OIDC scopes do not widen portfolio or Knowledge
+access; the server-owned data grant remains authoritative.
 
 This profile does not accept generic Google sign-in ID tokens, opaque tokens,
 shared-secret JWTs, arbitrary issuer/audience values or caller-supplied grants.

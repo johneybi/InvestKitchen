@@ -22,7 +22,7 @@ from pydantic import AnyHttpUrl
 from starlette.datastructures import MutableHeaders
 
 from protocol.v1.runtime.reference_composition import build_reference_gateway
-from protocol.v1.security.oauth_resource import JWTTokenVerifier, READ_SCOPE, load_oauth_resource
+from protocol.v1.security.oauth_resource import JWTTokenVerifier, load_oauth_resource
 from protocol.v1.transport.mcp_read_surface import ReadSurfaceError, RemoteReadSurface
 
 
@@ -76,7 +76,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier):
         auth=AuthSettings(
             issuer_url=AnyHttpUrl(verifier.config.issuer_url),
             resource_server_url=AnyHttpUrl(verifier.config.resource_url),
-            required_scopes=[READ_SCOPE], validate_token_resource=True,
+            required_scopes=list(verifier.config.required_scopes), validate_token_resource=True,
         ),
         token_verifier=verifier,
         transport_security=TransportSecuritySettings(

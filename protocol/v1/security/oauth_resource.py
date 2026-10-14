@@ -44,6 +44,7 @@ class OAuthResourceConfig(BaseModel):
     issuer_url: str
     resource_url: str
     client_id_claim: str = Field(default="client_id", min_length=1)
+    required_scopes: tuple[Literal["investkitchen.read", "openid", "offline_access"], ...] = (READ_SCOPE,)
     grants: tuple[ReadGrant, ...] = Field(min_length=1)
 
     @field_validator("issuer_url", "resource_url")
@@ -59,6 +60,8 @@ class OAuthResourceConfig(BaseModel):
 
     @model_validator(mode="after")
     def unique_grants(self) -> OAuthResourceConfig:
+        if READ_SCOPE not in self.required_scopes or len(set(self.required_scopes)) != len(self.required_scopes):
+            raise ValueError("Required scopes must include the read scope without duplicates")
         if urlsplit(self.resource_url).path != "/mcp":
             raise ValueError("Resource URL must end in /mcp")
         identities = [(grant.subject, grant.client_id) for grant in self.grants]

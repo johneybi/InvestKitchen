@@ -17,6 +17,33 @@ Knowledge, Market 상태를 읽는다.
 도메인이나 외부 인증 계정이 없어도 [합성 데이터 시험 구성](../deploy/gemini/README.ko.md)으로
 직접 실행한 인증 서버와 임시 HTTPS 주소를 준비할 수 있다. 상시 운영 전환과는 별도다.
 
+## 실제 NAS 데이터로 전환
+
+합성 시험의 완료 조건은 Gemini에서 인증된 도구를 호출할 수 있는지 확인하는 것이다.
+사용자의 실제 InvestKitchen을 쓰려면 NAS의 권위 있는 저장소에 별도 읽기 전용 HTTP
+프로세스를 연결하고, 고정 HTTPS와 실제 사용자 grant를 적용해야 한다.
+합성 데이터를 운영 데이터로 간주하거나 운영 데이터를 시험 디렉터리에 복제하지 않는다.
+
+2026-10-14 NAS 내부 사전 점검에서는 지정한 제품 커밋으로 실제 Portfolio 체크포인트와
+Knowledge를 조회했고, 본인 포트폴리오 범위 제한·다른 포트폴리오 거부·쓰기 도구 제외·
+원본 기록 무변경을 확인했다. 이것은 **실데이터 읽기 호환성 검증**이며, Google로의
+실데이터 전달이나 Gemini 운영 연결 완료를 의미하지 않는다.
+
+이미 Tailscale을 사용하는 NAS는 [Funnel](https://tailscale.com/docs/features/tailscale-funnel)의
+고정 `*.ts.net` HTTPS 주소를 검토할 수 있다. 기존 사설 Serve 경로를 보존하고 별도
+허용 포트를 사용한다. Funnel을 활성화하면 인터넷 공개 범위가 달라지므로 실제 공개
+적용 전에 운영자 권한과 동의를 확인한다. MCP는 공개 주소에서도 OAuth 인증을 요구한다.
+
+메모리가 제한된 NAS에서는 별도 DB/JVM을 추가하기 전에 사용량을 측정한다.
+경량 후보인 [Authelia](https://www.authelia.com/configuration/identity-providers/openid-connect/clients/)는
+SQLite, RS256 JWT 접근 토큰, 정확한 resource audience, PKCE S256으로 구성할 수 있다.
+로그인·토큰 교환·갱신과 Gemini 자체 호환성은 각각 검증해야 하며, 합성 Keycloak 시험이
+다른 인증 제공자의 Gemini 호환성까지 입증하지는 않는다.
+
+실제 연결 전에 Google에 전달할 포트폴리오 범위와 **인스턴스 전체 Knowledge** 조회를
+확인한다. 별도 HTTP 서비스·인증·HTTPS 진입점의 배포와 재시작·백업·되돌리기 준비가
+필요하다. 실제 Gemini 도구 호출과 토큰 갱신을 확인한 뒤 운영 검증 완료로 기록한다.
+
 ## 연결 앱과 스킬의 역할
 
 | 구성요소 | 역할 | 준비할 것 |
@@ -164,6 +191,13 @@ Knowledge 권한은 인스턴스 단위이며, 포트폴리오별 격리를 제�
   기본 ID 클레임은 `client_id`이며 제공자 계약에 따라 `client_id_claim`을
   `azp` 같은 다른 이름으로 지정할 수 있다.
 - 스코프: 공백으로 구분된 `scope`에 `investkitchen.read` 포함.
+
+기본 `required_scopes`는 `["investkitchen.read"]`다. 갱신 토큰을 받기 위해 OIDC
+스코프가 필요한 제공자에서는 운영자 설정에
+`"required_scopes": ["investkitchen.read", "openid", "offline_access"]`를 지정한다.
+이 목록은 리소스 메타데이터에 표시되고 HTTP 요청에서도 모두 요구된다.
+읽기 스코프를 제거하거나 쓰기 스코프를 추가할 수 없다. 추가 OIDC 스코프가 Portfolio
+범위나 Knowledge 권한을 넓히지는 않으며 데이터 접근은 기존 서버 grant가 결정한다.
 
 일반 Google 로그인 ID 토큰, opaque 토큰, 공유 비밀키로 서명한 JWT는 이 검증기의
 계약에 맞지 않는다. 계약이 다른 제공자를 쓰려면 별도 검증 어댑터를 리뷰해야 한다.
