@@ -10,6 +10,9 @@ Knowledge, Market 상태를 읽는다.
 OAuth 제공자 설정, NAS 배포, 실제 Gemini 계정 연결은 아직 완료하지 않았다.
 PR이 병합되어도 배포나 실제 연결 검증이 자동으로 완료되지는 않는다.
 
+도메인이나 외부 인증 계정이 없어도 [합성 데이터 시험 구성](../deploy/gemini/README.ko.md)으로
+직접 실행한 인증 서버와 임시 HTTPS 주소를 준비할 수 있다. 상시 운영 전환과는 별도다.
+
 ## 연결 앱과 스킬의 역할
 
 | 구성요소 | 역할 | 준비할 것 |
@@ -36,7 +39,8 @@ Gemini CLI 설치나 설정은 다루지 않는다.
 
 다음 단계는 운영자가 HTTPS MCP 서버와 OAuth를 준비한 뒤 진행한다.
 
-1. Gemini 웹 앱의 **Settings → Connected Apps**에서 **Custom apps**를 연다.
+1. Gemini 웹 앱의 **맞춤설정 → 커넥터 → 맞춤 앱 만들기**를 연다.
+   이전 UI에서는 **Settings → Connected Apps → Custom apps**를 연다.
    메뉴가 없으면 **Personal Intelligence → Connected Apps**도 확인한다.
 2. 맞춤 앱 추가에서 운영자가 제공한 공개 MCP 주소를 입력한다.
    예시 주소는 `https://mcp.example.test/mcp`다. 이 주소는 합성 예시다.
@@ -50,7 +54,7 @@ Gemini CLI 설치나 설정은 다루지 않는다.
 
 ## 스킬 수동 등록 (권장)
 
-Gemini 웹 앱에서 **설정 → 스킬 → 수동으로 만들기**를 선택하고 아래 세 항목을
+Gemini 웹 앱에서 **맞춤설정 → 스킬 → 만들기 → 수동으로 만들기**를 선택하고 아래 세 항목을
 입력한 뒤 만든다. 메뉴 이름은 계정 UI에 맞춰 확인한다.
 
 **이름**

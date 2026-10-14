@@ -55,7 +55,7 @@ The connected app supplies authenticated tools; the skill supplies instructions
 for using them. Registering a skill does not connect the server, log in or grant
 portfolio access. Complete the app connection separately.
 
-For manual registration in Gemini web, use **Settings → Skills → Create
+For manual registration in Gemini web, use **Customize → Skills → Create → Create
 manually** and fill in the following fields:
 
 | Field | Value from [`SKILL.md`](../skills/investkitchen-read/SKILL.md) |
