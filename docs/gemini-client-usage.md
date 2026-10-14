@@ -8,9 +8,11 @@ portable skill. It reuses the same InvestKitchen Gateway and authoritative state
 as the existing clients. The ChatGPT tunnel and stdio adapter retain their own
 deployment lifecycle.
 
-Status: implemented with synthetic local verification. Public ingress, OAuth
-provider provisioning, NAS deployment and actual Gemini connection have not been
-performed. A merged PR alone does not change those statuses.
+Status: implemented and tested with synthetic data through self-hosted Keycloak,
+local TLS and a temporary public HTTPS tunnel. Real PKCE tokens authorize MCP
+reads; write calls and out-of-scope portfolios are refused. Production ingress,
+NAS deployment and authenticated Gemini tool use are not yet verified. A merged
+PR alone does not change those statuses. See the [domain-free trial runbook](../deploy/gemini/README.md).
 
 ## Surface and boundaries
 
@@ -41,7 +43,8 @@ Google's [custom app documentation](https://support.google.com/gemini/answer/172
 currently specifies US availability, English, a personal Google account,
 age 18+ and Keep Activity enabled. Confirm that the actual account offers Custom
 apps before provisioning ingress. These restrictions are separate from whether
-the InvestKitchen implementation works. This has not been tested on a live account.
+the InvestKitchen implementation works. An account's custom-app registration UI
+and redirect-URI copy control have been observed; authenticated tool use remains unverified.
 
 In Gemini web, open Connected Apps, add the public MCP URL, and complete the OAuth
 flow. If Dynamic Client Registration is unavailable, Google's UI permits entering

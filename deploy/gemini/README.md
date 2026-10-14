@@ -15,7 +15,10 @@ workspace. Bootstrap a new external directory with `trial.py bootstrap --out
 <directory> --image <commit-image> --edge-image <commit-edge-image>`.
 
 Start `edge tunnel` with `compose.trial.yml`, obtain the temporary HTTPS origin,
-and configure the new trial using `trial.py configure --out <directory> --origin
+and use Gemini Apps' custom-app dialog to enter that origin's `/mcp` URL. Expand
+additional settings and copy the redirect URI before pressing Next. That URI is
+bound to the actual user and MCP hostname; do not reuse it across accounts or
+temporary origins. Configure the new trial using `trial.py configure --out <directory> --origin
 <assigned-origin> --redirect-uri <verified-exact-callback>`. Do not guess the
 Gemini Apps callback or replace it with a CLI/Enterprise callback. Reload Caddy
 without recreating the edge/tunnel namespace, then start `auth`.

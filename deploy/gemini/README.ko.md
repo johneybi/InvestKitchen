@@ -4,6 +4,10 @@
 발급하고, Cloudflare Quick Tunnel이 임시 HTTPS 주소를 제공한다. 개인 포트폴리오나
 운영 NAS 디렉터리를 연결하지 않는다. 상시 운영 배포는 별도 작업이다.
 
+2026-10-14 검증: 로컬 TLS와 임시 공개 HTTPS 주소에서 실제 로그인·PKCE·서명된 읽기
+권한, MCP 조회, 쓰기 거부, 범위 밖 포트폴리오 조회 거부를 확인했다. Gemini UI에서
+정확한 콜백을 확인했으며, Gemini의 자격증명 입력과 도구 호출은 별도 완료 단계다.
+
 [Cloudflare 공식 안내](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)에
 따르면 Quick Tunnel은 계정이나 도메인 없이 사용할 수 있지만 주소가 임시이며 SSE를
 지원하지 않는다. InvestKitchen은 JSON 응답을 사용한다. 실제 Gemini 호환성은 연결
@@ -46,9 +50,12 @@ docker compose --env-file "$GEMINI_TRIAL/trial.env" \
 
 ## 정확한 OAuth 콜백 주소로 구성
 
-Gemini가 실제로 사용하는 OAuth `redirect_uri`를 확인한다. Gemini CLI, Enterprise,
-Gemini Apps의 콜백 주소를 서로 대신 쓰지 않는다. 공식 안내 또는 실제 인증 요청으로
-확인한 정확한 주소가 필요하다. 확인하지 못했으면 여기서 계정 연결이 미완료인 상태다.
+Gemini 웹의 **맞춤설정 → 커넥터 → 맞춤 앱 만들기**에서 할당된 주소에 `/mcp`를 붙여
+입력하고 **추가 설정 → 리디렉션 URI 복사**를 누른다. 이 단계에서는 다음을 누르지 않는다.
+이 버튼이 제공한 정확한 OAuth `redirect_uri`를 사용한다. 주소는 사용자와 MCP 호스트에
+연결되므로 다른 계정이나 다른 임시 주소에 재사용하지 않는다. Gemini CLI, Enterprise,
+Gemini Apps의 콜백 주소를 서로 대신 쓰지 않는다. 해당 버튼이 없으면 공식 안내나 실제
+인증 요청으로 정확한 주소를 확인한다. 확인하지 못했으면 계정 연결이 미완료인 상태다.
 와일드카드나 추정 주소로 권한을 넓히지 않는다.
 
 ```sh
