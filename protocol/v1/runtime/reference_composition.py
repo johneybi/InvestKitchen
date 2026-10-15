@@ -146,6 +146,21 @@ class _ConnectorWriteCoordinator:
             raise ConnectorWriteRejected("preview_identity_conflict")
         self.pending[preview_id] = value
 
+    def review(self, preview_id: str) -> dict[str, Any]:
+        """Internal human-review view; never installed as a model tool."""
+        pending = self.pending.get(preview_id)
+        if not isinstance(pending, dict):
+            raise ConnectorWriteRejected("preview_not_found_or_expired")
+        if pending["kind"] == "knowledge":
+            return deepcopy(pending["preview"]["preview"])
+        if pending["kind"] == "portfolio":
+            return deepcopy(pending["candidate"])
+        raise ConnectorWriteRejected("unsupported_review_kind")
+
+    def discard(self, preview_id: str) -> None:
+        self.pending.pop(preview_id, None)
+        self.consumed.discard(preview_id)
+
     def _consume_pending(self, preview_id: str, kind: str) -> dict[str, Any]:
         if preview_id in self.consumed:
             raise ConnectorWriteRejected("preview_replayed")
@@ -808,6 +823,8 @@ def build_reference_gateway(
 
     history_handlers = None
     connector_handlers = None
+    connector_review = None
+    connector_discard = None
     native_store: NativeWriteStore | None = None
     native_knowledge: NativeKnowledgeStore | None = None
     historical_decisions: HistoricalDecisionStore | None = None
@@ -983,7 +1000,7 @@ def build_reference_gateway(
             PortfolioCheckpointStore(portfolio_checkpoint_root.resolve())
             if portfolio_checkpoint_root is not None else None
         )
-        connector_handlers = _ConnectorWriteCoordinator(
+        coordinator = _ConnectorWriteCoordinator(
             native_store=native_store,
             native_knowledge=native_knowledge,
             checkpoint_store=checkpoint_store,
@@ -995,11 +1012,16 @@ def build_reference_gateway(
             account_sync_max_age_seconds=account_sync_max_age_seconds,
             advisory_policies=advisory_policies,
             opinion_weighting=opinion_weighting,
-        ).handlers()
+        )
+        connector_handlers = coordinator.handlers()
+        connector_review = coordinator.review
+        connector_discard = coordinator.discard
     return ReadOnlyGatewayFacade(
         workspace=legacy_workspace or runtime_root,
         manifest=manifest.resolve(),
         handlers=handlers,
         connector_handlers=connector_handlers,
+        connector_review=connector_review,
+        connector_discard=connector_discard,
         portfolio_ids=configured_portfolio_ids,
     )

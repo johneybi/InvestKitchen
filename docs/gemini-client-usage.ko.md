@@ -1,5 +1,8 @@
 # Gemini에서 InvestKitchen 사용하기 — 읽기 전용 개발 버전
 
+선택적 [Knowledge·포트폴리오 쓰기 가이드](gemini-confirmed-writes.ko.md)는 별도 권한과 브라우저 승인을 사용하는 개발 기능을 설명한다. 기존 읽기 연결에 자동 적용되지 않는다.
+
+
 [English guide](gemini-client-usage.md) · [관련 이슈 #3](https://github.com/johneybi/InvestKitchen/issues/3)
 
 이 가이드는 Gemini 웹 앱에 InvestKitchen을 연결하고 스킬을 등록하는 방법을

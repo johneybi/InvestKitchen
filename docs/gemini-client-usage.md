@@ -1,5 +1,8 @@
 # Gemini client — read-only development profile
 
+An optional [confirmed update profile](gemini-confirmed-writes.md) adds native writes with separate grants and browser approval. It is not automatically enabled on an existing read connection.
+
+
 [한국어 가이드](gemini-client-usage.ko.md)
 
 Tracked by [issue #3](https://github.com/johneybi/InvestKitchen/issues/3).
