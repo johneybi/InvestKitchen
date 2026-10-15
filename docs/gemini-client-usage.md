@@ -9,16 +9,17 @@ as the existing clients. The ChatGPT tunnel and stdio adapter retain their own
 deployment lifecycle.
 
 Status: implemented and tested with synthetic data through self-hosted Keycloak,
-local TLS and a temporary public HTTPS tunnel. On 2026-10-14, the actual Gemini
-account completed OAuth, discovered six read tools, and called `list_portfolios`,
-`get_portfolio_state` and `get_current_knowledge` in the English UI with Argon.
-The empty `portfolio-alpha` and synthetic Knowledge results were checked along
-with authenticated HTTP success. Server tests also refuse writes and out-of-scope
-portfolios. A supervised NAS read service and separate public HTTPS ingress were
-then activated; trusted public relay checks passed. Actual-owner Gemini tool use
-and Gemini token refresh remain unverified. A merged PR alone does not change
-those statuses. See the
-[domain-free trial runbook](../deploy/gemini/README.md).
+local TLS and a temporary public HTTPS tunnel. On 2026-10-14, Gemini completed
+OAuth, discovered six read tools and read synthetic Portfolio and Knowledge in
+the English UI with Argon. Server tests refuse writes and out-of-scope reads.
+On 2026-10-15, a dedicated Tailscale node's HTTPS 443 passed public DNS/TLS checks
+and Gemini OAuth registration. The English UI with Flash returned
+`get_capabilities`, `list_portfolios`, `get_portfolio_state` and
+`get_current_knowledge` against approved authoritative state. Authenticated HTTP
+success and `refresh_token` exchange were also verified. Intermittent 401s
+succeeded on retry; long-term reliability remains unverified. PR merge and
+deployment of product changes remain separate from these operational checks.
+See the [domain-free trial runbook](../deploy/gemini/README.md).
 
 ## Transition to authoritative NAS data
 
@@ -31,11 +32,19 @@ On 2026-10-14, an internal NAS preflight read real checkpoint-authoritative
 Portfolio and native Knowledge through an identified product commit. Owner-only
 scope, denial of another portfolio, absent write tools and unchanged source
 records passed. This establishes data compatibility, not transmission to Google
-or an operational Gemini connection. The subsequent public deployment reached
-Google account consent and NAS OAuth login/consent, but its Google callback
-reported an expired session. Fresh registration attempts then received Google's
-generic invalid-MCP-URL response. Successful public discovery does not establish
-a completed Gemini connection, and no actual-owner Gemini tool call was verified.
+or an operational Gemini connection. After switching to a dedicated node's
+HTTPS 443 and verifying public DNS, Google account consent, NAS OAuth
+login/consent and app saving completed on 2026-10-15. Two approved real portfolios
+and native Knowledge were read through Gemini with authenticated HTTP success.
+The identity store recorded authorization-code exchange followed by
+`refresh_token` exchange beyond the access-token lifetime. No credentials or
+actual user responses are included here.
+
+Earlier session-expiry, URL-validation and public-DNS failures preceded the
+successful registration. This does not establish a restriction on the earlier
+port as the cause. Some read requests returned 401 and succeeded on retry. If
+this repeats, compare request and refresh timing without logging secrets or
+weakening authorization or token validation.
 
 OAuth discovery must preserve the issuer identifier exactly, including whether
 the final `/` is present, and accurately advertise the configured read scope.
@@ -43,8 +52,8 @@ The HTTP transport preserves the configured issuer instead of serializing a
 normalized URL object. This change is locally tested; the activated runtime uses
 an operator-generated ingress metadata correction. Check the identity provider's
 public metadata independently: configured custom scopes may be absent from its
-advertised `scopes_supported`. These contract checks do not prove that Google's
-remaining registration failure is resolved.
+advertised `scopes_supported`. Verify contract correctness, public DNS/TLS,
+app saving, actual reads and refresh independently.
 
 An existing Tailscale NAS can consider [Funnel](https://tailscale.com/docs/features/tailscale-funnel)
 for stable `*.ts.net` HTTPS on a separate allowed port, preserving existing private
@@ -90,7 +99,8 @@ age 18+ and Keep Activity enabled. Confirm that the actual account offers Custom
 apps before provisioning ingress. These restrictions are separate from whether
 the InvestKitchen implementation works. An account's custom-app registration UI
 and redirect-URI copy control were observed; authenticated synthetic reads
-subsequently succeeded in that account's English UI with Argon. A Pro attempt
+subsequently succeeded in that account's English UI with Argon, and real NAS
+reads succeeded with Flash. A Pro attempt
 returned a generic error, so the trial does not claim Pro compatibility.
 
 In the observed account, registration and authenticated tool discovery succeeded
