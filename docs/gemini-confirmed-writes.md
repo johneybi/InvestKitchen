@@ -34,5 +34,18 @@ required. Replace the read-only skill instructions when adopting the write
 profile; a skill itself cannot grant permissions or create approval evidence.
 The [Korean guide](gemini-confirmed-writes.ko.md) includes copyable instructions.
 
+If an existing app still requests only read scopes after the server advertises
+write scope in its initial OAuth challenge and metadata, reauthorize it. If
+unlinking and reconnecting through Google Account still preserves the old scope
+request, obtain approval to remove the custom-app registration, then recreate it
+with the same MCP URL and existing client credentials. Gemini may reject a
+duplicate registration while the original remains. Keep credentials and callback
+configuration private.
+
+Verify `investkitchen.write` in NAS consent, six read tools plus four preview/apply
+tools in Gemini discovery, and a successful actual read. Consent and discovery do
+not verify persistence: that requires the exact user-approved preview, manual NAS
+approval, apply and read-back sequence above.
+
 Operators must follow the [deployment runbook](../deploy/gemini/confirmed-writes.md).
 The old read grant does not authorize enabling live writes.

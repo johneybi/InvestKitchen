@@ -141,6 +141,11 @@ challenge scopes; advertising write scope only in metadata can leave reconnectio
 read-only. Existing read-only tokens still expose only reads, and requesting a
 scope does not create a server grant. If Google reuses the old scope set, unlink
 the MCP server in Google Account connections and reconnect the existing app.
+If the scope request still omits write scope, obtain explicit approval to remove
+the existing custom-app registration and recreate it with the same MCP URL and
+client credentials. An existing registration can block a duplicate URL. Preserve
+the exact callback allowlist and keep the registration settings private; do not
+weaken token validation or broaden the grant to repair a stale scope request.
 
 Re-authorize the actual Gemini app for write scope, inspect the four new tools,
 and run the complete preview → manual NAS approval → apply → read-back flow on
