@@ -135,6 +135,13 @@ Serve/Funnel state as part of enabling writes.
 
 Verify public HTTPS, unchanged issuer/resource, unauthenticated MCP rejection,
 private endpoint blocking, read-only token write denial and read regression.
+The optional write profile includes `investkitchen.write` in its initial OAuth
+`WWW-Authenticate` scope guidance as well as resource metadata. Clients prioritize
+challenge scopes; advertising write scope only in metadata can leave reconnections
+read-only. Existing read-only tokens still expose only reads, and requesting a
+scope does not create a server grant. If Google reuses the old scope set, unlink
+the MCP server in Google Account connections and reconnect the existing app.
+
 Re-authorize the actual Gemini app for write scope, inspect the four new tools,
 and run the complete preview → manual NAS approval → apply → read-back flow on
 an explicitly approved disposable payload. Do not create real portfolio edits

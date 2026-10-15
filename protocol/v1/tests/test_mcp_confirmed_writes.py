@@ -151,6 +151,20 @@ def test_write_discovery_requires_server_grant_and_write_scope(setup, signing_ke
     assert "apply_knowledge_update" in caps["remote_write_tools"]
 
 
+@pytest.mark.parametrize("authorization", [None, "Bearer invalid"])
+def test_write_profile_oauth_challenge_requests_write_consent(setup, authorization):
+    client, _, _, _, _ = setup
+    headers = {**HEADERS, **({"Authorization": authorization} if authorization else {})}
+    denied = _post(client, "tools/list", headers=headers)
+    assert denied.status_code == 401
+    challenge = denied.headers["WWW-Authenticate"]
+    assert 'scope="investkitchen.read investkitchen.write"' in challenge
+    assert 'resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource/mcp"' in challenge
+    assert len(re.findall(r'\bscope="', challenge)) == 1
+    assert denied.headers["Cache-Control"] == "no-store"
+    assert "error=" in challenge
+
+
 def test_identity_scope_and_apply_tool_are_bound_to_preview(setup, signing_key):
     client, headers, _, _, _ = setup
     bad = _narrow_request(); bad["portfolio_id"] = "portfolio-beta"

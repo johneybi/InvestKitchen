@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,13 +37,27 @@ from protocol.v1.transport.mcp_confirmed_writes import (
 
 
 class NoStoreMiddleware:
-    def __init__(self, app) -> None:
+    def __init__(self, app, authorization_scopes: tuple[str, ...] = ()) -> None:
         self.app = app
+        self.authorization_scopes = authorization_scopes
 
     async def __call__(self, scope, receive, send):
         async def no_cache(message):
             if message["type"] == "http.response.start":
-                MutableHeaders(scope=message)["Cache-Control"] = "no-store"
+                headers = MutableHeaders(scope=message)
+                headers["Cache-Control"] = "no-store"
+                challenge = headers.get("WWW-Authenticate", "")
+                if (scope.get("path") == "/mcp" and message["status"] == 401
+                        and self.authorization_scopes and challenge.startswith("Bearer ")):
+                    # Clients prioritize challenge scopes over discovery metadata.
+                    # This requests consent for the optional write profile without
+                    # granting it or rejecting existing read-only access tokens.
+                    guidance = 'scope="' + " ".join(self.authorization_scopes) + '"'
+                    if re.search(r'\bscope="[^"]*"', challenge):
+                        challenge = re.sub(r'\bscope="[^"]*"', guidance, challenge)
+                    else:
+                        challenge += ", " + guidance
+                    headers["WWW-Authenticate"] = challenge
             await send(message)
 
         await self.app(scope, receive, no_cache)
@@ -129,7 +144,9 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
     if writes is not None:
         app.router.routes.extend(writes.routes())
     # Authenticated reads and errors must not be cached by an ingress proxy.
-    app.add_middleware(NoStoreMiddleware)
+    app.add_middleware(NoStoreMiddleware, authorization_scopes=(
+        (*verifier.config.required_scopes, WRITE_SCOPE) if writes is not None else ()
+    ))
     return app
 
 

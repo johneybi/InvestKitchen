@@ -294,6 +294,7 @@ def test_http_authentication_metadata_modern_reads_and_denied_writes(signing_key
             denied = _post(client, "server/discover", headers=headers)
             assert denied.status_code == 401
             assert "resource_metadata=" in denied.headers["WWW-Authenticate"]
+            assert "investkitchen.write" not in denied.headers["WWW-Authenticate"]
             assert denied.headers["Cache-Control"] == "no-store"
         insufficient = _post(client, "server/discover", headers={**HEADERS, "Authorization": "Bearer " + _jwt(signing_key, scope="other")})
         assert insufficient.status_code == 403
