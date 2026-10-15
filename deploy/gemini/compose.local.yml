@@ -1,0 +1,6 @@
+# Local integration only; Compose merges this with compose.trial.yml.
+services:
+  edge:
+    ports:
+      - "127.0.0.1:18443:8443"
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.local", "--adapter", "caddyfile"]

@@ -9,10 +9,17 @@ description = "Self-hosted runtime and protocol boundary for InvestKitchen"
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
+remote = [
+  "mcp==2.3.0",
+  "PyJWT[crypto]==2.15.1",
+  "jsonschema>=4.20,<5",
+]
 dev = [
   "pytest>=8",
   "jsonschema>=4.20",
   "referencing>=0.35",
+  "mcp==2.3.0",
+  "PyJWT[crypto]==2.15.1",
 ]
 
 [tool.pytest.ini_options]

@@ -1,0 +1,73 @@
+name: ${GEMINI_PROJECT:?use the generated external trial.env}
+
+services:
+  edge:
+    image: ${GEMINI_EDGE_IMAGE:?set the verified edge image}
+    platform: linux/amd64
+    user: "${GEMINI_UID:?}:${GEMINI_GID:?}"
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16m,noexec,nosuid", "/data:size=16m,mode=0700,uid=${GEMINI_UID},gid=${GEMINI_GID}", "/config:size=4m,mode=0700,uid=${GEMINI_UID},gid=${GEMINI_GID}"]
+    ports:
+      - "127.0.0.1:18092:8092"
+    volumes:
+      - ${GEMINI_TRIAL_ROOT:?}/edge:/etc/caddy:ro
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    mem_limit: 128m
+    pids_limit: 64
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0@sha256:9b49eed8f62806d5d45ddf59ecefb5710429598ea6d3fcccd2af938f621b2b07
+    platform: linux/amd64
+    network_mode: service:edge
+    depends_on: [edge]
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    command: ["tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:8092"]
+    mem_limit: 128m
+    pids_limit: 64
+
+  auth:
+    image: quay.io/keycloak/keycloak:26.8.0@sha256:27b3230fbabb8c9ff3c66c864cf09dcd8a41aca82e5100679d109ef0eeb05741
+    platform: linux/amd64
+    user: "1000:${GEMINI_GID:?}"
+    network_mode: service:edge
+    depends_on: [edge]
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    env_file: ${GEMINI_TRIAL_ROOT:?}/auth/keycloak.env
+    volumes:
+      - ${GEMINI_TRIAL_ROOT:?}/auth/import:/opt/keycloak/data/import:ro
+      - auth_data:/opt/keycloak/data
+    command: ["start-dev", "--http-host=127.0.0.1", "--http-port=8091", "--import-realm"]
+    mem_limit: 1g
+    pids_limit: 256
+
+  runtime:
+    image: ${GEMINI_HTTP_IMAGE:?set the verified commit image}
+    platform: linux/amd64
+    user: "${GEMINI_UID:?}:${GEMINI_GID:?}"
+    network_mode: service:edge
+    depends_on: [edge]
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=32m,noexec,nosuid"]
+    environment:
+      INVESTKITCHEN_PORTFOLIO_AUTHORITY: personal-data
+      INVESTKITCHEN_MARKET_PROVIDER: none
+    volumes:
+      - ${GEMINI_TRIAL_ROOT:?}/oauth:/run/operator:ro
+      - ${GEMINI_TRIAL_ROOT:?}/synthetic/personal:/var/lib/investkitchen/personal:ro
+      - ${GEMINI_TRIAL_ROOT:?}/synthetic/state:/var/lib/investkitchen/state:ro
+    mem_limit: 512m
+    pids_limit: 64
+
+volumes:
+  auth_data:
