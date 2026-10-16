@@ -19,7 +19,9 @@ Knowledge는 인스턴스 전체가 공유한다. 포트폴리오 쓰기는 명�
 
 ## 사용 순서
 
-1. Gemini에서 연결한 실제 InvestKitchen 앱을 선택한다. `get_capabilities`의
+1. [영어 화면의 Gemini 채팅](https://gemini.google.com/app?hl=en) 입력창에서 `@`를 직접
+   입력하고 **Connectors → InvestKitchen NAS**처럼 실제 연결 앱을 선택한다.
+   **Skills → investkitchen**과는 별도 항목이다. `get_capabilities`의
    `remote_write_tools`와 도구 목록에 해당 미리보기·저장 도구가 있는지 확인한다.
 2. 저장할 내용과 대상 포트폴리오를 지정한다. Gemini가 기존 상태를 조회하고
    `preview_*_update`로 정확한 후보를 만든다. 이 단계는 아직 저장이 아니다.

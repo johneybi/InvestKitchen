@@ -120,6 +120,22 @@ operator-provisioned OAuth client credentials under Advanced features. Record
 the actual authenticated client ID in the server-side grant; do not assume a
 display name such as "Gemini" is authenticated identity.
 
+## Start a chat with the registered app
+
+Open a [new English-UI chat](https://gemini.google.com/app?hl=en); the prompt itself
+can be Korean. Type `@` directly in the composer and click the actual app under
+**Connectors**, such as `InvestKitchen NAS`. The similarly named entry under
+**Skills** supplies instructions, so select the connector separately. Pasting a
+complete `@App name` string may not open or select a mention.
+
+Once the selected-app marker appears, ask for the allowed portfolio list and
+check the actual response before continuing. Flash is the verified mode. If
+Gemini says no MCP tools are available, check the connector selection for that
+chat first. Registration or an enabled skill alone does not establish tool use
+for a response. If the app is absent, check the English UI and connection
+settings. An authentication error from an actual call is a separate connection
+failure; do not infer private state or report success.
+
 ## Register the skill; ZIP is optional
 
 The connected app supplies authenticated tools; the skill supplies instructions
