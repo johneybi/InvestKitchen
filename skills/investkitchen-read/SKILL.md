@@ -1,6 +1,6 @@
 ---
 name: investkitchen-read
-description: Use connected InvestKitchen tools for portfolio questions, current market observations, and source-backed investment context.
+description: Use the connected InvestKitchen app for account, holdings, cash, portfolio and Knowledge questions, including 내 계좌 조회 and 전체 포트폴리오 조회. Read actual details, then explain source-backed investment context.
 ---
 
 # InvestKitchen reads
@@ -10,19 +10,40 @@ connected InvestKitchen MCP app for facts, then use the conversation for researc
 reasoning and explanation. This skill contains instructions, not credentials or
 portfolio records. It works with Gemini or another MCP-capable assistant.
 
+## Load the connected app
+
+First use the client's connected-app discovery to load the actual InvestKitchen
+app, using its registered name (for example, `InvestKitchen NAS`). A matching
+skill supplies instructions; it does not itself load MCP tools. Do not treat
+function names in this document as evidence that those tools were provided.
+
+If app discovery cannot load the tools, say that this response has no loaded
+InvestKitchen app tools. In Gemini, direct the user to the English UI, type `@`,
+and select the registered app under **Connectors**. Do not diagnose a NAS outage,
+missing server configuration or a PC restriction from absent tools alone. Do not
+ask the user to paste private holdings as a connection repair. An error returned
+by an actual tool call is different; report its safe error accurately.
+
 ## Establish available facts
 
 - Inspect `get_capabilities` for runtime readiness and client usability.
-- Use `list_portfolios` to discover the current permitted scope. When the user has
-  not specified a portfolio and more than one is listed, ask which one they mean.
-  Never invent a fallback ID or reconstruct holdings from chat memory.
-- Use `get_portfolio_state` for the selected portfolio. Preserve its timestamps,
+- Use `list_portfolios` to discover the current permitted scope. Its IDs are not
+  account details. For broad questions such as "show my accounts", "내 계좌들
+  확인해 줘" or "다 조회해 줘", read every returned portfolio. For an explicitly
+  selected portfolio, read that scope. Ask only when the requested scope is
+  actually ambiguous. Never invent IDs or reconstruct holdings from chat memory.
+- Call `get_portfolio_state` for each requested portfolio and summarize its
+  accounts, holdings, quantities, cash and missing information. Users do not need
+  to provide API names. If the client discovers tools incrementally, discover
+  the detail tool in the connected app rather than inferring that listing is the
+  only available function. A previous model claim is not a current tool list.
+- Use fresh reads for follow-up questions that request current state. Preserve
+  source timestamps separately from response `generated_at`, along with
   authority, freshness, completeness, gaps and conflicts in your interpretation.
   An unavailable or partial result is not evidence of an empty portfolio.
 
-If InvestKitchen is disconnected or a required tool is unavailable, state the
-missing capability. Public research can support general analysis, but cannot
-replace the user's current portfolio facts.
+If a call fails, distinguish successful and failed scopes. Public research can
+support general analysis, but cannot replace the user's current portfolio facts.
 
 ## Gather market and Knowledge context
 

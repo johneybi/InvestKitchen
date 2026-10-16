@@ -128,8 +128,11 @@ can be Korean. Type `@` directly in the composer and click the actual app under
 **Skills** supplies instructions, so select the connector separately. Pasting a
 complete `@App name` string may not open or select a mention.
 
-Once the selected-app marker appears, ask for the allowed portfolio list and
-check the actual response before continuing. Flash is the verified mode. If
+Once the selected-app marker appears, ask an ordinary question such as "show my
+accounts". Verify account-level holdings and cash for each requested portfolio;
+IDs alone do not establish a detailed read. Continue with ordinary follow-ups
+such as "show all of them"; users do not need API names. Flash is the verified
+mode. If
 Gemini says no MCP tools are available, check the connector selection for that
 chat first. Registration or an enabled skill alone does not establish tool use
 for a response. If the app is absent, check the English UI and connection
@@ -143,6 +146,22 @@ the NAS connector. An existing conversation can use the English UI while prompts
 remain Korean. A model response saying no MCP tools are available does not by
 itself establish a NAS outage or PC-bound access. Distinguish absent tools from
 an authentication error returned by an actual call.
+
+On 2026-10-16, a fresh English-UI general chat reproduced the missing-tools
+response to an ordinary Korean account question while showing that the skill
+had been applied. Authenticated discovery in the same runtime configuration
+included the detail tool. After explicitly selecting the connected app in a
+fresh chat, the original ordinary question retrieved accounts, holdings and
+cash for both authorized portfolios. Instructions now distinguish app discovery,
+IDs and detailed reads, handle requests for all authorized portfolios, and forbid
+unsupported server-outage diagnoses. **An unselected fresh chat still failed to
+load app tools after the instruction update.** Neither the English UI nor a
+skill edit establishes that automatic app selection is repaired. A separate-PC
+retest remains unverified.
+
+Skill activation and actual app use are separate signals. Automatic app use in
+an unselected fresh chat is not guaranteed. The registration and skill belong to
+the Google account; this is not a per-PC local MCP installation.
 
 ## Register the skill; ZIP is optional
 
