@@ -157,7 +157,31 @@ IDs and detailed reads, handle requests for all authorized portfolios, and forbi
 unsupported server-outage diagnoses. **An unselected fresh chat still failed to
 load app tools after the instruction update.** Neither the English UI nor a
 skill edit establishes that automatic app selection is repaired. A separate-PC
-retest remains unverified.
+retest subsequently reported another failure: a broker-named account question
+received generic financial-security advice instead of a saved-state read. A
+successful broad account question does not establish natural account selection
+or cross-PC reliability. Automatic app selection remains unresolved.
+
+Questions such as "내 토스 계좌를 조회해 줘" normally ask for observations
+already saved in InvestKitchen. The broker name filters accounts; it does not
+request a new brokerage login. The skill now directs clients to match names,
+identifiers, providers and account types from actual authorized portfolio reads.
+Return matches separately by portfolio, without inventing aliases, inferring
+ownership or merging balances across owners. Distinguish no matching account
+and unloaded tools from financial authentication restrictions. An explicit
+request for a live brokerage refresh is a separate capability; claim it only
+when an available authorized tool supports it, and always label saved-state
+source dates.
+
+After updating the account skill's description and instructions on the same
+day, a fresh Flash chat with the actual app selected returned the matching
+accounts, holdings, cash and source dates for both authorized portfolios in
+response to "다시 내 토스 계좌를 조회해 줘", without API names. An unselected
+control chat still reported unloaded app tools. A follow-up, "그럼 내 ISA 계좌는?",
+also returned the matching account details without app reselection; its server
+call was not independently traced. This verifies those questions in the
+selected-app setup, not automatic cross-PC connection or every natural-language
+expression.
 
 Skill activation and actual app use are separate signals. Automatic app use in
 an unselected fresh chat is not guaranteed. The registration and skill belong to
