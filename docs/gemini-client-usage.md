@@ -183,6 +183,23 @@ call was not independently traced. This verifies those questions in the
 selected-app setup, not automatic cross-PC connection or every natural-language
 expression.
 
+Further fresh-chat controls on the same day still failed for generic Korean
+account questions in Flash and Argon, and for a generic English account question
+in Flash, despite a saved account-wide default-source instruction. Prompts that
+included the exact registered app name returned account details without manual
+app selection; the Korean control also visibly showed the app connecting. This
+does not establish reliable implicit activation for ordinary account questions.
+
+An additional server candidate supplies a bilingual MCP `serverInfo.description`,
+account-oriented initialization instructions and clearer read-tool descriptions.
+The description was previously omitted. These metadata changes preserve tool
+schemas, authorization and write approval requirements. Synthetic wire checks
+and the protocol suite pass, but the candidate is not yet deployed. Whether
+Gemini uses this metadata to improve implicit app selection remains unverified.
+After a pinned deployment, refresh client discovery if needed and test a new
+chat without an app mention or selection, then repeat from another PC. A saved
+preference, skill activation or portfolio ID list is not sufficient evidence.
+
 Skill activation and actual app use are separate signals. Automatic app use in
 an unselected fresh chat is not guaranteed. The registration and skill belong to
 the Google account; this is not a per-PC local MCP installation.
