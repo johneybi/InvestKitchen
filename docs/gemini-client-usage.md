@@ -190,15 +190,27 @@ included the exact registered app name returned account details without manual
 app selection; the Korean control also visibly showed the app connecting. This
 does not establish reliable implicit activation for ordinary account questions.
 
-An additional server candidate supplies a bilingual MCP `serverInfo.description`,
+An additional server change supplies a bilingual MCP `serverInfo.description`,
 account-oriented initialization instructions and clearer read-tool descriptions.
 The description was previously omitted. These metadata changes preserve tool
 schemas, authorization and write approval requirements. Synthetic wire checks
-and the protocol suite pass, but the candidate is not yet deployed. Whether
-Gemini uses this metadata to improve implicit app selection remains unverified.
-After a pinned deployment, refresh client discovery if needed and test a new
-chat without an app mention or selection, then repeat from another PC. A saved
-preference, skill activation or portfolio ID list is not sufficient evidence.
+and the protocol suite passed. Commit `f4e6e9b` was deployed on 2026-10-16 after
+operator preflight and synthetic recovery checks. The public resource continued
+to require OAuth; protected configuration hashes matched after activation.
+Gemini's app detail page displayed the new bilingual overview and ten actions,
+including `get_portfolio_state`, without an OAuth reset. **Fresh Flash chats still
+failed to load tools for both broad and broker-named Korean account questions
+without app mention or selection after that metadata was visible. A fresh Argon
+chat also failed the broad account question.** The selected-app control visibly
+connected and returned account details with source
+dates and a newly reported response generation time; its server call was not
+independently traced. This verifies metadata delivery and that control response,
+not a repair of implicit selection or cross-PC reliability. No setting to force
+this custom app into every new chat was found in the inspected account UI.
+Google's [custom-app guide](https://support.google.com/gemini/answer/17209137)
+advises explicit app selection to ensure use; it does not establish that selection
+is mandatory for every prompt. A saved preference, skill activation or portfolio
+ID list is not sufficient evidence of automatic detail retrieval.
 
 Skill activation and actual app use are separate signals. Automatic app use in
 an unselected fresh chat is not guaranteed. The registration and skill belong to
