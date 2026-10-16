@@ -128,8 +128,11 @@ can be Korean. Type `@` directly in the composer and click the actual app under
 **Skills** supplies instructions, so select the connector separately. Pasting a
 complete `@App name` string may not open or select a mention.
 
-Once the selected-app marker appears, ask for the allowed portfolio list and
-check the actual response before continuing. Flash is the verified mode. If
+Once the selected-app marker appears, ask an ordinary question such as "show my
+accounts". Verify account-level holdings and cash for each requested portfolio;
+IDs alone do not establish a detailed read. Continue with ordinary follow-ups
+such as "show all of them"; users do not need API names. Flash is the verified
+mode. If
 Gemini says no MCP tools are available, check the connector selection for that
 chat first. Registration or an enabled skill alone does not establish tool use
 for a response. If the app is absent, check the English UI and connection
@@ -143,6 +146,75 @@ the NAS connector. An existing conversation can use the English UI while prompts
 remain Korean. A model response saying no MCP tools are available does not by
 itself establish a NAS outage or PC-bound access. Distinguish absent tools from
 an authentication error returned by an actual call.
+
+On 2026-10-16, a fresh English-UI general chat reproduced the missing-tools
+response to an ordinary Korean account question while showing that the skill
+had been applied. Authenticated discovery in the same runtime configuration
+included the detail tool. After explicitly selecting the connected app in a
+fresh chat, the original ordinary question retrieved accounts, holdings and
+cash for both authorized portfolios. Instructions now distinguish app discovery,
+IDs and detailed reads, handle requests for all authorized portfolios, and forbid
+unsupported server-outage diagnoses. **An unselected fresh chat still failed to
+load app tools after the instruction update.** Neither the English UI nor a
+skill edit establishes that automatic app selection is repaired. A separate-PC
+retest subsequently reported another failure: a broker-named account question
+received generic financial-security advice instead of a saved-state read. A
+successful broad account question does not establish natural account selection
+or cross-PC reliability. Automatic app selection remains unresolved.
+
+Questions such as "내 토스 계좌를 조회해 줘" normally ask for observations
+already saved in InvestKitchen. The broker name filters accounts; it does not
+request a new brokerage login. The skill now directs clients to match names,
+identifiers, providers and account types from actual authorized portfolio reads.
+Return matches separately by portfolio, without inventing aliases, inferring
+ownership or merging balances across owners. Distinguish no matching account
+and unloaded tools from financial authentication restrictions. An explicit
+request for a live brokerage refresh is a separate capability; claim it only
+when an available authorized tool supports it, and always label saved-state
+source dates.
+
+After updating the account skill's description and instructions on the same
+day, a fresh Flash chat with the actual app selected returned the matching
+accounts, holdings, cash and source dates for both authorized portfolios in
+response to "다시 내 토스 계좌를 조회해 줘", without API names. An unselected
+control chat still reported unloaded app tools. A follow-up, "그럼 내 ISA 계좌는?",
+also returned the matching account details without app reselection; its server
+call was not independently traced. This verifies those questions in the
+selected-app setup, not automatic cross-PC connection or every natural-language
+expression.
+
+Further fresh-chat controls on the same day still failed for generic Korean
+account questions in Flash and Argon, and for a generic English account question
+in Flash, despite a saved account-wide default-source instruction. Prompts that
+included the exact registered app name returned account details without manual
+app selection; the Korean control also visibly showed the app connecting. This
+does not establish reliable implicit activation for ordinary account questions.
+
+An additional server change supplies a bilingual MCP `serverInfo.description`,
+account-oriented initialization instructions and clearer read-tool descriptions.
+The description was previously omitted. These metadata changes preserve tool
+schemas, authorization and write approval requirements. Synthetic wire checks
+and the protocol suite passed. Commit `f4e6e9b` was deployed on 2026-10-16 after
+operator preflight and synthetic recovery checks. The public resource continued
+to require OAuth; protected configuration hashes matched after activation.
+Gemini's app detail page displayed the new bilingual overview and ten actions,
+including `get_portfolio_state`, without an OAuth reset. **Fresh Flash chats still
+failed to load tools for both broad and broker-named Korean account questions
+without app mention or selection after that metadata was visible. A fresh Argon
+chat also failed the broad account question.** The selected-app control visibly
+connected and returned account details with source
+dates and a newly reported response generation time; its server call was not
+independently traced. This verifies metadata delivery and that control response,
+not a repair of implicit selection or cross-PC reliability. No setting to force
+this custom app into every new chat was found in the inspected account UI.
+Google's [custom-app guide](https://support.google.com/gemini/answer/17209137)
+advises explicit app selection to ensure use; it does not establish that selection
+is mandatory for every prompt. A saved preference, skill activation or portfolio
+ID list is not sufficient evidence of automatic detail retrieval.
+
+Skill activation and actual app use are separate signals. Automatic app use in
+an unselected fresh chat is not guaranteed. The registration and skill belong to
+the Google account; this is not a per-PC local MCP installation.
 
 ## Register the skill; ZIP is optional
 
