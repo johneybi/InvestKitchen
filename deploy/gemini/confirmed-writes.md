@@ -26,6 +26,15 @@ return the authenticated `Remote-User`. See its official
 [proxy authorization guide](https://www.authelia.com/reference/guides/proxy-authorization/).
 MCP annotations and Gemini UI confirmations are not server-verifiable receipts.
 
+Review HTML must use `Referrer-Policy: same-origin`. The Fetch standard makes a
+native form POST with `no-referrer` send `Origin: null`, so the strict Origin
+check rejects even the user's valid click. `same-origin` preserves the expected
+Origin for this form and withholds the review URL from other origins. Keep the
+exact Origin, browser identity, CSRF token and content-type checks; never accept
+`null` or missing Origin as a workaround. Verify a native browser form submission
+as well as the HTTP tests, which provide Origin explicitly. See the
+[Fetch Origin algorithm](https://fetch.spec.whatwg.org/#append-a-request-origin-header).
+
 ## Prepare an identified source and private configuration
 
 Use a reviewed commit or verified image. Keep source, personal input, canonical

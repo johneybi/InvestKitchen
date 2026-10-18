@@ -312,7 +312,11 @@ class ConfirmedWriteSurface:
                             'pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f5f7;padding:20px}'
                             'button{font:inherit;padding:12px 18px;margin:8px;cursor:pointer}'
                             '</style><h1>InvestKitchen 변경 승인</h1>' + body + '</html>', status_code=status,
-                            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
+                            # no-referrer makes native form POSTs send Origin: null,
+                            # which correctly fails the strict same-origin check.
+                            # Keep the review URL private across origins while
+                            # allowing its own form to carry the expected Origin.
+                            headers={"Cache-Control": "no-store", "Referrer-Policy": "same-origin",
                                      "X-Content-Type-Options": "nosniff",
                                      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"})
 

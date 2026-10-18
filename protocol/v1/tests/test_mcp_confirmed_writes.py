@@ -95,6 +95,9 @@ def _browser_form(client, preview, username="fixture-owner"):
     path = urlsplit(preview["approval_url"]).path
     page = client.get(path)
     assert page.status_code == 200, page.text
+    # Native browser form POSTs use this policy when serializing Origin.
+    assert page.headers["Referrer-Policy"] == "same-origin"
+    assert page.headers["Cache-Control"] == "no-store"
     csrf = re.search(r'name="csrf" value="([^"]+)"', page.text).group(1)
     return path, {"csrf": csrf, "decision": "approve"}
 
@@ -188,9 +191,11 @@ def test_browser_authentication_csrf_origin_and_rejection_are_fail_closed(setup)
     assert client.get(path).status_code == 404
     path, form = _browser_form(client, preview)
     for form_value, origin in [(form, "https://evil.example.test"),
+                               (form, "null"), (form, ""),
                                ({**form, "csrf": "forged"}, writes.origin),
                                ({"decision": "approve"}, writes.origin)]:
         assert client.post(path, data=form_value, headers={"Origin": origin}).status_code == 403
+    assert not (writes.audit_root / "browser-confirmations.jsonl").exists()
     no_session = client.cookies.get(COOKIE)
     client.cookies.delete(COOKIE)
     assert client.post(path, data=form, headers={"Origin": writes.origin}).status_code == 403
