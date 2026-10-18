@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from datetime import datetime, timezone
 
 import pytest
 from starlette.testclient import TestClient
@@ -16,13 +17,18 @@ from protocol.v1.transport.mcp_http import create_http_app
 
 
 @pytest.fixture
-def runtime(tmp_path, signing_key):
+def runtime(tmp_path, signing_key, request, monkeypatch):
+    now = [time.time()]
+    clock = lambda: datetime.fromtimestamp(now[0], timezone.utc)
+    monkeypatch.setattr('protocol.v1.runtime.advisory_plan_update._now', clock)
+    monkeypatch.setattr('protocol.v1.security.trusted_approval._utc_now', lambda value: value or clock())
     raw = _config().model_dump()
     for grant in raw['grants']:
         grant['permissions'] = [*grant['permissions'], 'plan.read']
     resource = OAuthResourceConfig.model_validate(raw)
     config = ConfirmedWriteConfig.model_validate({
         'authelia_authz_url': 'http://127.0.0.1:19091/api/authz/forward-auth',
+        'plan_preview_ttl_seconds': getattr(request, 'param', 300),
         'grants': [{**{k: getattr(grant, k) for k in ['subject', 'client_id', 'portfolio_scope']},
                     'browser_username': 'fixture-owner' if index == 0 else 'fixture-other',
                     'permissions': ['plan.update'], 'expires_at': '2099-01-01T00:00:00Z'}
@@ -40,17 +46,18 @@ def runtime(tmp_path, signing_key):
             runtime_root=ROOT, manifest=ROOT / 'protocol/v1/fixtures/full-reference.instance.json',
             native_store_root=tmp_path / 'native', advisory_plan_root=tmp_path / 'plans',
             approval_store_root=tmp_path / 'approvals' / grant.subject,
+            plan_preview_ttl_seconds=config.plan_preview_ttl_seconds,
             write_principal=identity, write_grant=authority)
         gateway.portfolio_ids = ['portfolio-alpha', 'portfolio-beta']
         backends[grant.subject] = gateway
         return gateway
-    now = [time.time()]
     writes = ConfirmedWriteSurface(resource, config, factory, audit_root=tmp_path / 'browser-evidence',
         browser_identity=lambda request: request.cookies.get('fixture-session'), clock=lambda: now[0])
     verifier = JWTTokenVerifier(resource, _jwks(signing_key))
     with TestClient(create_http_app(backends['fixture-reader'], verifier, writes=writes),
                     base_url='https://mcp.example.test') as client:
-        headers = {**HEADERS, 'Authorization': 'Bearer ' + _jwt(signing_key, scope='investkitchen.read ' + WRITE_SCOPE)}
+        headers = {**HEADERS, 'Authorization': 'Bearer ' + _jwt(signing_key, exp=int(time.time()) + 3600,
+                                                              scope='investkitchen.read ' + WRITE_SCOPE)}
         yield client, headers, writes, now, backends, signing_key, tmp_path
 
 
@@ -163,5 +170,73 @@ def test_plan_browser_approval_failures_do_not_persist(runtime, monkeypatch, fai
             monkeypatch.setattr(writes, '_audit', fail)
         response = client.post(path, data=form, headers={'Origin': 'https://mcp.example.test'})
         assert response.status_code == {'reject': 200, 'expiry': 404, 'audit-unavailable': 503}[failure]
+    assert apply(client, headers, review)['isError'] is True
+    assert not backends['fixture-reader'].plan_store.native_path.exists()
+
+
+@pytest.mark.parametrize('runtime', [900], indirect=True)
+def test_configured_plan_window_allows_delayed_review_but_never_extends_deadline(runtime):
+    client, headers, writes, now, backends, _, _ = runtime
+    review = preview(client, headers)
+    candidate = review['candidate']
+    start = datetime.fromisoformat(candidate['prepared_at']['value'].replace('Z', '+00:00')).timestamp()
+    end = datetime.fromisoformat(candidate['expires_at']['value'].replace('Z', '+00:00')).timestamp()
+    assert end - start == 900
+    assert next(iter(writes.pending.values()))['expires'] == pytest.approx(end, abs=0.000001, rel=0)
+    now[0] += 360  # Model response + independent human login exceed the old limit.
+    assert apply(client, headers, review)['isError'] is True
+    _approve(client, review)
+    result = apply(client, headers, review)['structuredContent']
+    assert result['status'] == 'applied' and result['read_back']['matches'] is True
+    replacement = preview(client, headers, 'replace', result['plan_id'])
+    now[0] += 850
+    _approve(client, replacement)
+    now[0] += 51  # Browser approval does not restart the configured window.
+    assert apply(client, headers, replacement)['isError'] is True
+    assert len(backends['fixture-reader'].plan_store.snapshot()['history']) == 1
+
+
+@pytest.mark.parametrize('runtime', [900], indirect=True)
+def test_client_cannot_override_plan_review_window(runtime):
+    client, headers, _, _, backends, _, _ = runtime
+    for args in [{'update': plan_request(), 'ttl_seconds': 3600},
+                 {'update': {**plan_request(), 'plan_preview_ttl_seconds': 3600}}]:
+        assert _call(client, headers, 'preview_plan_update', args)['isError'] is True
+    assert not backends['fixture-reader'].plan_store.native_path.exists()
+
+
+@pytest.mark.parametrize('value', [0, 59, 901, True, '900', 900.5])
+def test_plan_review_window_config_rejects_unbounded_or_coerced_values(value):
+    from protocol.v1.tests.test_mcp_confirmed_writes import _write_config
+    with pytest.raises(ValueError):
+        _write_config(plan_preview_ttl_seconds=value)
+
+
+def test_plan_review_window_default_is_unchanged():
+    from protocol.v1.tests.test_mcp_confirmed_writes import _write_config
+    assert _write_config().plan_preview_ttl_seconds == 300
+
+
+def test_browser_deadline_never_outlives_shorter_canonical_preview(runtime):
+    client, headers, writes, now, backends, _, _ = runtime
+    # A separately composed backend may still use the default five-minute TTL.
+    writes.config = writes.config.model_copy(update={'plan_preview_ttl_seconds': 900})
+    review = preview(client, headers)
+    end = datetime.fromisoformat(review['candidate']['expires_at']['value'].replace('Z', '+00:00')).timestamp()
+    assert next(iter(writes.pending.values()))['expires'] <= end
+    now[0] += 301
+    assert apply(client, headers, review)['isError'] is True
+    assert not backends['fixture-reader'].plan_store.native_path.exists()
+
+
+@pytest.mark.parametrize('runtime', [900], indirect=True)
+def test_browser_deadline_never_outlives_write_grant(runtime):
+    client, headers, writes, now, backends, _, _ = runtime
+    grant = writes.config.grants[0].model_copy(update={'expires_at': datetime.fromtimestamp(now[0] + 120, timezone.utc)})
+    writes.config = writes.config.model_copy(update={'grants': (grant, *writes.config.grants[1:])})
+    review = preview(client, headers)
+    assert next(iter(writes.pending.values()))['expires'] == grant.expires_at.timestamp()
+    _approve(client, review)
+    now[0] += 121
     assert apply(client, headers, review)['isError'] is True
     assert not backends['fixture-reader'].plan_store.native_path.exists()

@@ -59,11 +59,18 @@ with complete new `plan` content. Closure supplies `operation: "close"`,
 The canonical request schema is `protocol/v1/schemas/plan-update.schema.json`.
 
 The preview includes the complete candidate, candidate digest, exact confirmation
-phrase, and a five-minute deadline. Display its content and effect to the user,
-resolve any intended account validation, and obtain explicit approval of that
+phrase, and an explicit deadline (five minutes by default). Display its content
+and effect to the user, resolve any intended account validation, and obtain explicit approval of that
 candidate. Then call `apply_plan_update({preview_id, confirmation})` with the exact
 returned phrase. Do not automatically echo the phrase as approval. If the
 candidate must change, preview again and obtain a new approval.
+
+The server-owned HTTP write config may opt into `plan_preview_ttl_seconds`
+(60–900 seconds, default 300) to allow for model response time and independent
+human login. This is never a tool argument. The canonical candidate digest binds
+the original expiry, the browser link cannot outlive that candidate or its grant,
+and neither NAS nor Gemini confirmation extends the deadline. Other write
+families and the trusted receipt TTL retain their existing limits.
 
 The server checks authenticated identity, permission, Portfolio scope, expiry,
 confirmation, and an issued, unrevoked, payload-bound trusted approval receipt.
@@ -187,8 +194,12 @@ authorization/scope, tampering/revocation/expiry/replay, concurrent writes,
 publication failures, corrupt state, and read-only compatibility.
 
 Before deployment, preserve a consistent backup of Plan and approval state and
-record the source commit/image. After deployment, inspect tool discovery in
-each actual client, prove an out-of-scope request fails, and verify approved
+record the source commit/image. For a systemd deployment, inspect service
+dependencies before stopping MCP. An ingress unit with `Requires=` on MCP stops
+with it and is not automatically restarted by restarting MCP alone. Both
+cutover and rollback must start MCP and then its ingress, verify the protected
+public endpoint, and preserve the original rollback snapshot on retries. After
+deployment, inspect tool discovery in each actual client, prove an out-of-scope request fails, and verify approved
 synthetic create/replace/close and re-query. Record actual client verification
 separately from local HTTP/stdio tests.
 

@@ -13,6 +13,15 @@ from protocol.v1.adapters.common import PROTOCOL_VERSION, digest, timepoint
 from protocol.v1.runtime.advisory_plan_store import AdvisoryPlanStore
 from protocol.v1.security.trusted_approval import TrustedApprovalStore
 
+DEFAULT_PLAN_PREVIEW_TTL_SECONDS = 300
+MAX_PLAN_PREVIEW_TTL_SECONDS = 900
+
+
+def validate_plan_preview_ttl(value: int) -> int:
+    if type(value) is not int or not 60 <= value <= MAX_PLAN_PREVIEW_TTL_SECONDS:
+        raise ValueError("Plan preview TTL must be an integer between 60 and 900 seconds")
+    return value
+
 
 class PlanUpdateRejected(ValueError):
     def __init__(self, code: str) -> None:
@@ -89,7 +98,9 @@ def _validate_request(request: Any) -> None:
         raise PlanUpdateRejected("plan_update_shape_invalid")
 
 
-def build_plan_update_preview(store: AdvisoryPlanStore, request: dict[str, Any]) -> dict[str, Any]:
+def build_plan_update_preview(store: AdvisoryPlanStore, request: dict[str, Any], *,
+                              ttl_seconds: int = DEFAULT_PLAN_PREVIEW_TTL_SECONDS) -> dict[str, Any]:
+    ttl_seconds = validate_plan_preview_ttl(ttl_seconds)
     _validate_request(request)
     state = store.snapshot()
     portfolio_id, operation = request["portfolio_id"], request["operation"]
@@ -119,7 +130,7 @@ def build_plan_update_preview(store: AdvisoryPlanStore, request: dict[str, Any])
         "target_plan_id": request.get("plan_id"), "next_plan": next_plan,
         "reason": request["reason"], "source_ref": request["source_ref"],
         "base_digest": state["state_digest"], "prepared_at": _point(now),
-        "expires_at": _point(now + timedelta(seconds=300)),
+        "expires_at": _point(now + timedelta(seconds=ttl_seconds)),
     }
     candidate_digest = digest(candidate)
     return {
@@ -230,12 +241,14 @@ def apply_plan_update(
 class PlanUpdateCoordinator:
     """Identity-bound, single-use, expiring previews; restart invalidates them."""
     def __init__(self, store: AdvisoryPlanStore, approval_store: TrustedApprovalStore, principal: dict, grant: dict,
-                 *, portfolio_stores: dict[str, AdvisoryPlanStore] | None = None) -> None:
+                 *, portfolio_stores: dict[str, AdvisoryPlanStore] | None = None,
+                 preview_ttl_seconds: int = DEFAULT_PLAN_PREVIEW_TTL_SECONDS) -> None:
         self.store, self.approval_store = store, approval_store
         self.principal, self.grant = copy.deepcopy(principal), copy.deepcopy(grant)
         self.pending: dict[str, dict] = {}
         self.lock = threading.Lock()
         self.portfolio_stores = dict(portfolio_stores or {})
+        self.preview_ttl_seconds = validate_plan_preview_ttl(preview_ttl_seconds)
 
     def store_for(self, portfolio_id: str) -> AdvisoryPlanStore:
         return self.portfolio_stores.get(portfolio_id, self.store)
@@ -255,7 +268,8 @@ class PlanUpdateCoordinator:
         update = payload.get("update")
         _validate_request(update)
         authorize_plan(self.principal, self.grant, update["portfolio_id"])
-        preview = build_plan_update_preview(self.store_for(update["portfolio_id"]), update)
+        preview = build_plan_update_preview(self.store_for(update["portfolio_id"]), update,
+                                            ttl_seconds=self.preview_ttl_seconds)
         with self.lock:
             self.pending = {key: value for key, value in self.pending.items()
                             if _parse(value["candidate"]["expires_at"]) > _now()}

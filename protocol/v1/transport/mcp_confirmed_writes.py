@@ -30,6 +30,7 @@ from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from protocol.v1.security.oauth_resource import OAuthResourceConfig, READ_SCOPE
+from protocol.v1.runtime.advisory_plan_update import DEFAULT_PLAN_PREVIEW_TTL_SECONDS, MAX_PLAN_PREVIEW_TTL_SECONDS
 from protocol.v1.transport.mcp_read_surface import ReadSurfaceError
 from protocol.v1.transport.stdio_rpc import LocalToolRouter
 
@@ -82,6 +83,8 @@ class ConfirmedWriteConfig(BaseModel):
 
     authelia_authz_url: str
     authelia_cookie_name: str = Field(default="authelia_session", pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    plan_preview_ttl_seconds: int = Field(default=DEFAULT_PLAN_PREVIEW_TTL_SECONDS, strict=True,
+                                          ge=60, le=MAX_PLAN_PREVIEW_TTL_SECONDS)
     grants: tuple[WriteGrant, ...] = Field(min_length=1)
 
     @field_validator("authelia_authz_url")
@@ -245,11 +248,24 @@ class ConfirmedWriteSurface:
                     gateway.connector_discard(preview_id)
                     raise ReadSurfaceError("Exact write review unavailable") from None
                 ticket = secrets.token_urlsafe(32)
+                expires = min(self.clock() + 300, grant.expires_at.timestamp())
+                if name == "preview_plan_update":
+                    try:
+                        canonical_expiry = datetime.fromisoformat(review["candidate"]["expires_at"]["value"].replace("Z", "+00:00"))
+                        if canonical_expiry.tzinfo is None:
+                            raise ValueError
+                        expires = min(self.clock() + self.config.plan_preview_ttl_seconds,
+                                      canonical_expiry.timestamp(), grant.expires_at.timestamp())
+                        if expires <= self.clock():
+                            raise ValueError
+                    except (KeyError, TypeError, ValueError, AttributeError):
+                        gateway.connector_discard(preview_id)
+                        raise ReadSurfaceError("Exact write review expiry unavailable") from None
                 self.pending[ticket] = {
                     "identity": grant.identity, "preview_id": preview_id,
                     "apply": WRITE_TOOLS[name][1], "confirmation": result["confirmation"],
                     "review": review,
-                    "expires": min(self.clock() + 300, grant.expires_at.timestamp()),
+                    "expires": expires,
                     "state": "awaiting_approval", "browser_session": None,
                 }
                 return {**result, "approval_url": self.origin + "/approve/" + ticket,
