@@ -1,0 +1,19 @@
+{
+  "issuer_url": "https://auth.example.test/",
+  "resource_url": "https://mcp.example.test/mcp",
+  "client_id_claim": "client_id",
+  "grants": [
+    {
+      "subject": "synthetic-owner",
+      "client_id": "synthetic-gemini-client",
+      "permissions": [
+        "system.capabilities.read",
+        "portfolio.read",
+        "knowledge.read",
+        "market.read",
+        "decision.context.build"
+      ],
+      "portfolio_scope": ["portfolio-alpha"]
+    }
+  ]
+}

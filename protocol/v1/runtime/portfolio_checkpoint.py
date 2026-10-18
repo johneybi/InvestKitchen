@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator
 
 from protocol.v1.adapters.common import PROTOCOL_VERSION, canonical_json, digest, timepoint
+from protocol.v1.runtime.journal_lock import journal_lock
 from protocol.v1.runtime.native_write_store import NativeWriteStore, StoreConflict, StoreCorrupt
 from protocol.v1.runtime.portfolio_materializer import MaterializationBlocked, materialize_portfolio
 
@@ -164,7 +165,8 @@ def validate_checkpoint_journal_rows(
 class PortfolioCheckpointStore:
     """Append-only persistent Portfolio checkpoints kept outside the code repo."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, read_only: bool = False) -> None:
+        self.read_only = read_only
         self.root = root.expanduser().resolve()
         self.journal_path = self.root / "checkpoints.jsonl"
         self.lock_path = self.root / ".checkpoints.lock"
@@ -192,14 +194,9 @@ class PortfolioCheckpointStore:
         return rows
 
     def read_all(self) -> list[dict[str, Any]]:
-        self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
-        fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
-        with os.fdopen(fd, "r+") as lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_SH)
-            try:
-                return self._read_unlocked()
-            finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        with journal_lock(self.root, self.lock_path, exclusive=False,
+                          read_only=self.read_only):
+            return self._read_unlocked()
 
     def latest(self, portfolio_id: str) -> dict[str, Any]:
         matches = [row for row in self.read_all() if row.get("portfolio_id") == portfolio_id]
@@ -208,6 +205,8 @@ class PortfolioCheckpointStore:
         return matches[-1]
 
     def append(self, checkpoint: dict[str, Any]) -> None:
+        if self.read_only:
+            raise PermissionError("Read-only checkpoints cannot be changed")
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
         with os.fdopen(fd, "r+") as lock_file:

@@ -762,6 +762,7 @@ def build_reference_gateway(
     market_provider: str = "none",
     market_secret_file: Path | None = None,
     native_store_root: Path | None = None,
+    read_only_stores: bool = False,
     advisory_state_root: Path | None = None,
     historical_decision_root: Path | None = None,
     historical_transaction_root: Path | None = None,
@@ -774,6 +775,8 @@ def build_reference_gateway(
     account_provider_secret_files: Mapping[str, Path] | None = None,
     account_sync_max_age_seconds: int = 300,
 ) -> ReadOnlyGatewayFacade:
+    if read_only_stores and (write_principal is not None or write_grant is not None):
+        raise ValueError("Read-only stores cannot receive write authority")
     runtime_root = runtime_root.resolve()
     legacy_workspace = legacy_workspace.resolve() if legacy_workspace is not None else None
     personal_data_root = personal_data_root.expanduser().resolve() if personal_data_root is not None else None
@@ -844,8 +847,11 @@ def build_reference_gateway(
             candidate.validate()
             historical_transactions = candidate
     if native_store_root is not None:
-        native_store = NativeWriteStore(native_store_root.resolve())
-        native_knowledge = NativeKnowledgeStore(native_store_root.resolve())
+        native_store = NativeWriteStore(native_store_root.resolve(), read_only=read_only_stores)
+        native_knowledge = NativeKnowledgeStore(native_store_root.resolve(), read_only=read_only_stores)
+        if read_only_stores:
+            native_store.read_journal()
+            native_knowledge.read_journal()
         history_handlers = {
             "decision.history": lambda payload: get_decision_history(
                 native_store,
@@ -955,7 +961,9 @@ def build_reference_gateway(
     if portfolio_checkpoint_root is not None:
         if native_store is None:
             raise ValueError("portfolio checkpoint root requires native store root")
-        checkpoint_store = PortfolioCheckpointStore(portfolio_checkpoint_root.resolve())
+        checkpoint_store = PortfolioCheckpointStore(portfolio_checkpoint_root.resolve(), read_only=read_only_stores)
+        if read_only_stores:
+            checkpoint_store.read_all()
         handlers["portfolio.state"] = lambda payload: get_materialized_portfolio_state(
             checkpoint_store,
             native_store,
