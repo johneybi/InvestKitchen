@@ -6,6 +6,35 @@ Implementation and synthetic local tests are separate from release, deployment
 and operational verification in GPT/Gemini. This feature does not itself deploy
 or replace any personal Plan.
 
+## Verified deployment — 2026-10-18
+
+PR [#10](https://github.com/johneybi/InvestKitchen/pull/10) is merged. The GPT
+extension uses reviewed source `2917be88a8989de601441ad5ac732687074d6993` and
+preserves all 35 installed tools. The Gemini HTTP deployment uses reviewed source
+`7a1915db2d649be2de79e49bbfbac3eb9320552b`, including the bounded Plan review window
+from PR [#11](https://github.com/johneybi/InvestKitchen/pull/11) and native browser
+form Origin fix from PR [#12](https://github.com/johneybi/InvestKitchen/pull/12).
+The operator explicitly configured the Plan preview lifetime to 900 seconds.
+
+Actual ChatGPT synthetic preview, explicit confirmation, apply and stored
+read-back/requery passed. Actual Gemini separately authenticated browser approval,
+apply (`status=applied`, `read_back.matches=true`) and active/history requery
+passed. ChatGPT cross-client reads returned the same Gemini replacement and
+preserved superseded prior Plan. Independent browser audit, trusted receipt and
+native-store checks confirmed those results. Actual out-of-scope and expired
+requests were denied during client verification.
+
+The isolated synthetic Plan was closed with all six lifecycle events retained;
+temporary verification bindings were removed from both clients. Protected OAuth
+health and service checks passed. Existing personal Plan files remained unchanged,
+and no native state was created in their store. A new real Plan and validation of
+all account data were outside this verification.
+
+Validation: public product suite 372 passed with eight optional private
+compatibility skips; existing workspace integration 446 passed with the same
+eight skips. CI passed. The browser fix was also verified through a real Chrome
+form submission against an isolated product fixture before deployment.
+
 ## Client contract
 
 `get_active_plans(portfolio_id)` reads the authoritative active Plan.
