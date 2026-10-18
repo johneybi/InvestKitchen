@@ -1,5 +1,8 @@
 # Gemini에서 InvestKitchen 사용하기 — 읽기 전용 개발 버전
 
+Plan 생성·교체·종료는 별도 권한과 독립적인 브라우저 승인이 필요한 선택 기능입니다. [native Plan 안내](native-plan-lifecycle.md)를 참고하세요. 운영 배포와 실제 클라이언트 검증은 별도입니다.
+
+
 선택적 [Knowledge·포트폴리오 쓰기 가이드](gemini-confirmed-writes.ko.md)는 별도 권한과 브라우저 승인을 사용하는 개발 기능을 설명한다. 기존 읽기 연결에 자동 적용되지 않는다.
 
 

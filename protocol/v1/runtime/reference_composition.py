@@ -14,7 +14,8 @@ from typing import Any, Callable, Iterable, Mapping
 from protocol.v1.adapters.common import digest, result_envelope, timepoint
 from protocol.v1.adapters.gateway_facade import ReadOnlyGatewayFacade, build_compatibility_handlers
 from protocol.v1.adapters.native_history import get_decision_history, get_transaction_history
-from protocol.v1.adapters.advisory_state import get_active_plans, get_current_policy, get_open_items
+from protocol.v1.adapters.advisory_state import get_active_plans, get_current_policy, get_open_items, get_plan_history
+from protocol.v1.runtime.advisory_plan_update import PlanUpdateCoordinator
 from protocol.v1.adapters.native_personal import (
     get_current_knowledge as get_native_current_knowledge,
     get_portfolio_state as get_native_portfolio_state,
@@ -109,6 +110,8 @@ class _ConnectorWriteCoordinator:
         account_providers: Mapping[str, AccountSnapshotReader] | None = None,
         account_sync_max_age_seconds: int = 300,
         advisory_policies: AdvisoryPolicyStore | None = None,
+        advisory_plans: AdvisoryPlanStore | None = None,
+        plan_portfolio_stores: dict[str, AdvisoryPlanStore] | None = None,
         opinion_weighting: OpinionWeightingStore | None = None,
     ) -> None:
         self.native_store = native_store
@@ -121,6 +124,8 @@ class _ConnectorWriteCoordinator:
         self.account_providers = dict(account_providers or {})
         self.account_sync_max_age_seconds = int(account_sync_max_age_seconds)
         self.advisory_policies = advisory_policies
+        self.plan_updates = (PlanUpdateCoordinator(advisory_plans, approval_store, principal, grant, portfolio_stores=plan_portfolio_stores)
+                             if advisory_plans is not None else None)
         self.opinion_weighting = opinion_weighting
         self.pending: dict[str, dict[str, Any]] = {}
         self.consumed: set[str] = set()
@@ -148,6 +153,8 @@ class _ConnectorWriteCoordinator:
 
     def review(self, preview_id: str) -> dict[str, Any]:
         """Internal human-review view; never installed as a model tool."""
+        if self.plan_updates is not None and preview_id.startswith("plan-preview:"):
+            return self.plan_updates.review(preview_id)
         pending = self.pending.get(preview_id)
         if not isinstance(pending, dict):
             raise ConnectorWriteRejected("preview_not_found_or_expired")
@@ -158,6 +165,8 @@ class _ConnectorWriteCoordinator:
         raise ConnectorWriteRejected("unsupported_review_kind")
 
     def discard(self, preview_id: str) -> None:
+        if self.plan_updates is not None:
+            self.plan_updates.discard(preview_id)
         self.pending.pop(preview_id, None)
         self.consumed.discard(preview_id)
 
@@ -589,6 +598,11 @@ class _ConnectorWriteCoordinator:
             return not allowlist or name in allowlist
 
         result: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {}
+        if self.plan_updates is not None and "plan.update" in permissions:
+            if allowed("preview_plan_update"):
+                result["preview_plan_update"] = self.plan_updates.preview
+            if "operation.approve" in permissions and allowed("apply_plan_update"):
+                result["apply_plan_update"] = self.plan_updates.apply
         if "knowledge.commit" in permissions and allowed("preview_knowledge_update"):
             result["preview_knowledge_update"] = self.preview_knowledge
             if "operation.approve" in permissions and allowed("apply_knowledge_update"):
@@ -779,6 +793,9 @@ def build_reference_gateway(
     native_store_root: Path | None = None,
     read_only_stores: bool = False,
     advisory_state_root: Path | None = None,
+    advisory_plan_root: Path | None = None,
+    plan_verification_root: Path | None = None,
+    plan_verification_id: str | None = None,
     historical_decision_root: Path | None = None,
     historical_transaction_root: Path | None = None,
     portfolio_checkpoint_root: Path | None = None,
@@ -835,11 +852,12 @@ def build_reference_gateway(
     opinion_weighting: OpinionWeightingStore | None = None
     personal_store: PersonalDataStore | None = None
     configured_portfolio_ids: list[str] = []
+    plan_portfolio_stores: dict[str, AdvisoryPlanStore] = {}
     if advisory_state_root is not None:
         root = advisory_state_root.resolve()
         candidate_open_items = OpenItemStore(root / "open-items")
         candidate_policies = AdvisoryPolicyStore(root / "policies")
-        candidate_plans = AdvisoryPlanStore(root / "plans")
+        candidate_plans = AdvisoryPlanStore(root / "plans", read_only=read_only_stores)
         candidate_opinion_weighting = OpinionWeightingStore(root / "opinion-weighting")
         if candidate_open_items.exists():
             candidate_open_items.validate()
@@ -847,12 +865,25 @@ def build_reference_gateway(
         if candidate_policies.exists():
             candidate_policies.validate()
             advisory_policies = candidate_policies
-        if candidate_plans.exists():
-            candidate_plans.validate()
-            advisory_plans = candidate_plans
+        candidate_plans.validate()
+        advisory_plans = candidate_plans
         if candidate_opinion_weighting.exists():
             candidate_opinion_weighting.validate()
             opinion_weighting = candidate_opinion_weighting
+    if advisory_plan_root is not None:
+        advisory_plans = AdvisoryPlanStore(advisory_plan_root, read_only=read_only_stores)
+        advisory_plans.validate()
+    if plan_verification_root is not None or plan_verification_id is not None:
+        if advisory_plans is None or not plan_verification_root or not str(plan_verification_id or "").startswith("verification:"):
+            raise ValueError("Plan verification requires an explicit verification namespace and separate store")
+        verify_root = plan_verification_root.resolve()
+        protected = [advisory_plans.root, runtime_root]
+        protected.extend(root.resolve() for root in (personal_data_root, native_store_root, approval_store_root) if root is not None)
+        if any(verify_root == root or verify_root.is_relative_to(root) or root.is_relative_to(verify_root) for root in protected):
+            raise ValueError("Plan verification storage must be separate")
+        plan_portfolio_stores[str(plan_verification_id)] = AdvisoryPlanStore(verify_root, read_only=read_only_stores)
+    def plan_store_for(portfolio_id: str) -> AdvisoryPlanStore:
+        return plan_portfolio_stores.get(portfolio_id, advisory_plans)
     if historical_decision_root is not None:
         candidate = HistoricalDecisionStore(historical_decision_root.resolve())
         if candidate.exists():
@@ -904,7 +935,7 @@ def build_reference_gateway(
         )
     if advisory_plans is not None:
         handlers["plan.active"] = lambda payload: get_active_plans(
-            advisory_plans,
+            plan_store_for(str(payload["portfolio_id"])),
             portfolio_id=str(payload["portfolio_id"]),
         )
     if opinion_weighting is not None:
@@ -1011,11 +1042,17 @@ def build_reference_gateway(
             account_providers=configured_account_providers,
             account_sync_max_age_seconds=account_sync_max_age_seconds,
             advisory_policies=advisory_policies,
+            advisory_plans=advisory_plans,
+            plan_portfolio_stores=plan_portfolio_stores,
             opinion_weighting=opinion_weighting,
         )
         connector_handlers = coordinator.handlers()
         connector_review = coordinator.review
         connector_discard = coordinator.discard
+    if plan_portfolio_stores:
+        if set(plan_portfolio_stores) & set(configured_portfolio_ids):
+            raise ValueError("Plan verification namespace conflicts with a personal Portfolio")
+        configured_portfolio_ids.extend(plan_portfolio_stores)
     return ReadOnlyGatewayFacade(
         workspace=legacy_workspace or runtime_root,
         manifest=manifest.resolve(),
@@ -1024,4 +1061,6 @@ def build_reference_gateway(
         connector_review=connector_review,
         connector_discard=connector_discard,
         portfolio_ids=configured_portfolio_ids,
+        plan_history_reader=(lambda **kwargs: get_plan_history(plan_store_for(kwargs["portfolio_id"]), **kwargs)) if advisory_plans is not None else None,
+        plan_store=advisory_plans,
     )

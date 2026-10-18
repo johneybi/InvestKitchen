@@ -109,6 +109,9 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
         "get_opinion_weighting",
         "build_opinion_consensus",
         "get_active_plans",
+        "get_plan_history",
+        "preview_plan_update",
+        "apply_plan_update",
         "get_current_knowledge",
         "search_knowledge",
         "preview_knowledge_update",
@@ -144,7 +147,7 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
         for tool in catalog["tools"]
         if tool["name"] not in {
             "apply_knowledge_update", "apply_portfolio_update", "apply_account_sync",
-            "apply_policy_update", "apply_opinion_weighting_update",
+            "apply_policy_update", "apply_opinion_weighting_update", "apply_plan_update",
         }
     )
 

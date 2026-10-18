@@ -11,6 +11,9 @@ from typing import Any
 from protocol.v1.adapters.common import PROTOCOL_VERSION, canonical_json, digest
 
 
+from protocol.v1.runtime.advisory_plan_store import AdvisoryPlanStore
+
+
 STORE_SCHEMA_VERSION = 1
 
 
@@ -181,42 +184,6 @@ class AdvisoryPolicyStore:
             _private_write(self.manifest_path, next_manifest)
         self.validate()
         return new_digest
-
-
-class AdvisoryPlanStore:
-    def __init__(self, root: Path) -> None:
-        self.root = root.expanduser().resolve()
-        self.manifest_path = self.root / "manifest.json"
-        self.plans_path = self.root / "plans.json"
-
-    def exists(self) -> bool:
-        return self.manifest_path.is_file() and self.plans_path.is_file()
-
-    def validate(self) -> dict[str, Any]:
-        manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
-        plans = json.loads(self.plans_path.read_text(encoding="utf-8"))
-        if not isinstance(manifest, dict) or manifest.get("schema_version") != STORE_SCHEMA_VERSION:
-            raise ValueError("advisory plan manifest invalid")
-        if not isinstance(plans, list):
-            raise ValueError("advisory plan rows invalid")
-        ids = [str(row.get("plan_id") or "") for row in plans if isinstance(row, dict)]
-        if len(ids) != len(plans) or not all(ids) or len(ids) != len(set(ids)):
-            raise ValueError("advisory plan identities invalid")
-        if any(not str(row.get("portfolio_id") or "") for row in plans):
-            raise ValueError("advisory plan scope invalid")
-        if any(row.get("order_authorized") is not False for row in plans):
-            raise ValueError("advisory plan execution authority invalid")
-        if manifest.get("plans_sha256") != _sha256_file(self.plans_path):
-            raise ValueError("advisory plan digest mismatch")
-        summary = manifest.get("summary") if isinstance(manifest.get("summary"), dict) else {}
-        if summary.get("plans") not in (None, len(plans)):
-            raise ValueError("advisory plan count mismatch")
-        return manifest
-
-    def list_plans(self) -> list[dict[str, Any]]:
-        self.validate()
-        return [dict(row) for row in json.loads(self.plans_path.read_text(encoding="utf-8"))]
-
 
 
 def validate_advisory_state(root: Path) -> dict[str, Any]:

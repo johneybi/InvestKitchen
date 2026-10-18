@@ -9,6 +9,7 @@ STATE_ROOT=${TRADEMIND_STATE_ROOT:-/var/lib/trademind/state}
 PORTFOLIO_AUTHORITY=${INVESTKITCHEN_PORTFOLIO_AUTHORITY:-personal-data}
 CONNECTOR_WRITES=${INVESTKITCHEN_CONNECTOR_WRITES:-disabled}
 POLICY_WRITES=${INVESTKITCHEN_POLICY_WRITES:-disabled}
+PLAN_WRITES=${INVESTKITCHEN_PLAN_WRITES:-disabled}
 OPINION_WRITES=${INVESTKITCHEN_OPINION_WRITES:-disabled}
 MARKET_PROVIDER=${INVESTKITCHEN_MARKET_PROVIDER:-none}
 MARKET_SECRET_FILE=${INVESTKITCHEN_MARKET_SECRET_FILE:-/run/secrets/toss_market_readonly}
@@ -70,6 +71,13 @@ case "$POLICY_WRITES" in
     exit 2
     ;;
 esac
+case "$PLAN_WRITES" in
+  disabled|enabled) ;;
+  *)
+    echo "InvestKitchen runtime configuration error: unsupported Plan write mode" >&2
+    exit 2
+    ;;
+esac
 case "$OPINION_WRITES" in
   disabled|enabled) ;;
   *)
@@ -78,7 +86,7 @@ case "$OPINION_WRITES" in
     ;;
 esac
 
-if [ "$CONNECTOR_WRITES" = "enabled" ] || [ "$ACCOUNT_SYNC" = "enabled" ] || [ "$POLICY_WRITES" = "enabled" ] || [ "$OPINION_WRITES" = "enabled" ]; then
+if [ "$CONNECTOR_WRITES" = "enabled" ] || [ "$ACCOUNT_SYNC" = "enabled" ] || [ "$POLICY_WRITES" = "enabled" ] || [ "$PLAN_WRITES" = "enabled" ] || [ "$OPINION_WRITES" = "enabled" ]; then
     WRITE_PRINCIPAL=/tmp/investkitchen-write-principal.json
     WRITE_GRANT=/tmp/investkitchen-write-grant.json
     python3 - "$PERSONAL_DATA_ROOT/personal-data-manifest.json" "$WRITE_PRINCIPAL" "$WRITE_GRANT" <<'PY'
@@ -117,6 +125,9 @@ if os.environ.get("INVESTKITCHEN_ACCOUNT_SYNC", "disabled") == "enabled":
 if os.environ.get("INVESTKITCHEN_POLICY_WRITES", "disabled") == "enabled":
     permissions.extend(["policy.update", "operation.approve"])
     allowlist.extend(["preview_policy_update", "apply_policy_update"])
+if os.environ.get("INVESTKITCHEN_PLAN_WRITES", "disabled") == "enabled":
+    permissions.extend(["plan.update", "operation.approve"])
+    allowlist.extend(["preview_plan_update", "apply_plan_update"])
 if os.environ.get("INVESTKITCHEN_OPINION_WRITES", "disabled") == "enabled":
     permissions.extend(["opinion.update", "operation.approve"])
     allowlist.extend(["preview_opinion_weighting_update", "apply_opinion_weighting_update"])

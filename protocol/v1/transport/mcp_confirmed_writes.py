@@ -38,6 +38,7 @@ WRITE_SCOPE = "investkitchen.write"
 WRITE_TOOLS = {
     "preview_knowledge_update": ("knowledge.commit", "apply_knowledge_update"),
     "preview_portfolio_update": ("portfolio.update", "apply_portfolio_update"),
+    "preview_plan_update": ("plan.update", "apply_plan_update"),
 }
 APPLY_TOOLS = {apply: preview for preview, (_, apply) in WRITE_TOOLS.items()}
 COOKIE = "__Host-investkitchen-review"
@@ -49,7 +50,7 @@ class WriteGrant(BaseModel):
     subject: str = Field(min_length=1)
     client_id: str = Field(min_length=1)
     browser_username: str = Field(min_length=1, max_length=256)
-    permissions: tuple[Literal["knowledge.commit", "portfolio.update"], ...] = Field(min_length=1)
+    permissions: tuple[Literal["knowledge.commit", "portfolio.update", "plan.update"], ...] = Field(min_length=1)
     portfolio_scope: tuple[str, ...] = ()
     expires_at: datetime
 
@@ -67,7 +68,7 @@ class WriteGrant(BaseModel):
                 or any(not value.strip() for value in self.portfolio_scope)
                 or self.browser_username != self.browser_username.strip()):
             raise ValueError("Invalid write grant")
-        if "portfolio.update" in self.permissions and not self.portfolio_scope:
+        if {"portfolio.update", "plan.update"} & set(self.permissions) and not self.portfolio_scope:
             raise ValueError("Portfolio writes require an explicit scope")
         return self
 
@@ -105,7 +106,7 @@ class ConfirmedWriteConfig(BaseModel):
             if read is None or not set(grant.portfolio_scope).issubset(read.portfolio_scope):
                 raise ValueError("Writes must remain inside the corresponding read grant")
             for permission, required in [("knowledge.commit", "knowledge.read"),
-                                         ("portfolio.update", "portfolio.read")]:
+                                         ("portfolio.update", "portfolio.read"), ("plan.update", "plan.read")]:
                 if permission in grant.permissions and required not in read.permissions:
                     raise ValueError("Writes require the corresponding read permission")
 
@@ -232,7 +233,7 @@ class ConfirmedWriteSurface:
             if name in WRITE_TOOLS:
                 if len(self.pending) >= self.max_pending:
                     raise ReadSurfaceError("Pending review limit reached")
-                if name == "preview_portfolio_update" and arguments["update"]["portfolio_id"] not in grant.portfolio_scope:
+                if name in {"preview_portfolio_update", "preview_plan_update"} and arguments["update"]["portfolio_id"] not in grant.portfolio_scope:
                     raise ReadSurfaceError("Requested portfolio is not authorized")
                 result = router.call_tool(name, arguments)
                 if result.get("status") != "review_required":
@@ -362,7 +363,8 @@ class ConfirmedWriteSurface:
                 self.sessions[sid] = session
             pending["browser_session"] = sid
             review = html.escape(json.dumps(pending["review"], ensure_ascii=False, indent=2))
-            label = "Knowledge 저장·수정" if pending["apply"] == "apply_knowledge_update" else "포트폴리오 관측 정보 갱신"
+            label = {"apply_knowledge_update": "Knowledge 저장·수정", "apply_portfolio_update": "포트폴리오 관측 정보 갱신",
+                     "apply_plan_update": "조건부 Plan 생성·교체·종료"}[pending["apply"]]
             response = self._html('<p>' + label + '</p><p>아래 변경 내용과 대상을 확인하세요. 승인 후 Gemini에서 적용해야 저장됩니다.</p>'
                                   '<pre>' + review + '</pre><form method="post"><input type="hidden" name="csrf" value="'
                                   + html.escape(session["csrf"], quote=True) + '"><button name="decision" value="approve">이 변경 승인</button>'

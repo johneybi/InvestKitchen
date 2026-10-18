@@ -1,5 +1,8 @@
 # Gemini client — read-only development profile
 
+Optional advisory Plan create/replace/close uses the existing independent browser approval profile. See [native Plan lifecycle](native-plan-lifecycle.md). Deployment and actual client verification remain separate.
+
+
 An optional [confirmed update profile](gemini-confirmed-writes.md) adds native writes with separate grants and browser approval. It is not automatically enabled on an existing read connection.
 
 

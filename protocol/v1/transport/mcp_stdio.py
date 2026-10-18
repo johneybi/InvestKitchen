@@ -54,6 +54,9 @@ _TOOL_CAPABILITY = {
     "get_opinion_weighting": "opinion.weighting.current",
     "build_opinion_consensus": "opinion.consensus",
     "get_active_plans": "plan.active",
+    "get_plan_history": None,
+    "preview_plan_update": None,
+    "apply_plan_update": None,
     "get_current_knowledge": "knowledge.current",
     "search_knowledge": "knowledge.search",
     "get_market_quote": "market.quote",
@@ -75,6 +78,8 @@ _TOOL_CAPABILITY = {
 }
 
 _CONNECTOR_WRITE_TOOLS = {
+    "preview_plan_update",
+    "apply_plan_update",
     "preview_knowledge_update",
     "apply_knowledge_update",
     "preview_portfolio_update",
@@ -355,6 +360,8 @@ def main() -> int:
     parser.add_argument("--account-sync-max-age-seconds", type=int, default=300)
     parser.add_argument("--native-store-root", type=Path)
     parser.add_argument("--advisory-state-root", type=Path)
+    parser.add_argument("--plan-verification-root", type=Path)
+    parser.add_argument("--plan-verification-id")
     parser.add_argument("--historical-decision-root", type=Path)
     parser.add_argument("--historical-transaction-root", type=Path)
     parser.add_argument("--portfolio-checkpoint-root", type=Path)
@@ -395,6 +402,7 @@ def main() -> int:
             market_secret_file=args.market_secret_file,
             native_store_root=args.native_store_root,
             advisory_state_root=args.advisory_state_root,
+            plan_verification_root=args.plan_verification_root, plan_verification_id=args.plan_verification_id,
             historical_decision_root=args.historical_decision_root,
             historical_transaction_root=args.historical_transaction_root,
             portfolio_checkpoint_root=args.portfolio_checkpoint_root,

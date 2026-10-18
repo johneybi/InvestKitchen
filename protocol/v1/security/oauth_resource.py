@@ -18,7 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 READ_SCOPE = "investkitchen.read"
 ReadPermission = Literal[
     "system.capabilities.read", "portfolio.read", "knowledge.read",
-    "market.read", "decision.context.build",
+    "market.read", "decision.context.build", "plan.read",
 ]
 
 

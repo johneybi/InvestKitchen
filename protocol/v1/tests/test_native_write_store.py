@@ -410,6 +410,7 @@ def test_write_apply_surface_still_excludes_decision_and_transaction_mutations()
         "apply_account_sync",
         "apply_policy_update",
         "apply_opinion_weighting_update",
+        "apply_plan_update",
     }
     assert "record_decision" not in by_name
     assert "record_transaction" not in by_name
