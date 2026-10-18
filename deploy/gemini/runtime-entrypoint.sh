@@ -6,6 +6,15 @@ set -- python -m protocol.v1.transport.mcp_http \
   --manifest /app/protocol/v1/fixtures/full-reference.instance.json \
   --personal-data-root /var/lib/investkitchen/personal \
   --native-store-root /var/lib/investkitchen/state/native-write
+case "${INVESTKITCHEN_PLAN_WRITES:-disabled}" in
+  disabled) ;;
+  enabled)
+    set -- "$@" --advisory-plan-root /var/lib/investkitchen/plans \
+      --write-config /run/operator/plan-write-config.json \
+      --approval-store-root /var/lib/investkitchen/plan-approvals
+    ;;
+  *) echo "InvestKitchen HTTP MCP Plan configuration error" >&2; exit 2 ;;
+esac
 case "${INVESTKITCHEN_PORTFOLIO_AUTHORITY:-checkpoint}" in
   checkpoint)
     set -- "$@" --portfolio-checkpoint-root /var/lib/investkitchen/state/portfolio-checkpoints

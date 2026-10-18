@@ -1,5 +1,8 @@
 # 도메인·외부 인증 계정 없이 Gemini 연결 시험하기
 
+Plan 생성·교체·종료는 별도 권한과 독립적인 브라우저 승인이 필요한 선택 기능입니다. [native Plan 안내](../../docs/native-plan-lifecycle.md)를 참고하세요. 운영 배포와 실제 클라이언트 검증은 별도입니다.
+
+
 이 구성은 **합성 데이터 시험용**이다. 직접 실행한 Keycloak이 로그인과 OAuth 토큰을
 발급하고, Cloudflare Quick Tunnel이 임시 HTTPS 주소를 제공한다. 개인 포트폴리오나
 운영 NAS 디렉터리를 연결하지 않는다. 상시 운영 배포는 별도 작업이다.

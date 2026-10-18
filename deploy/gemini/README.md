@@ -1,5 +1,8 @@
 # Gemini synthetic trial without a domain or hosted identity account
 
+Optional advisory Plan create/replace/close uses the existing independent browser approval profile. See [native Plan lifecycle](../../docs/native-plan-lifecycle.md). Deployment and actual client verification remain separate.
+
+
 See the [Korean runbook](README.ko.md) for complete commands and the
 [client guide](../../docs/gemini-client-usage.md) for the read-only contract.
 

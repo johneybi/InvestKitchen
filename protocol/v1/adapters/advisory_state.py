@@ -63,3 +63,19 @@ def get_active_plans(store: AdvisoryPlanStore, *, portfolio_id: str) -> dict[str
         source_mode="local_store",
         permissions_used=["plan.read"],
     )
+
+
+def get_plan_history(store: AdvisoryPlanStore, *, portfolio_id: str, plan_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+    state = store.snapshot()
+    plans = [row for row in state["plans"] if row["portfolio_id"] == portfolio_id
+             and (plan_id is None or row["plan_id"] == plan_id)]
+    events = [row for row in reversed(state["history"]) if row["portfolio_id"] == portfolio_id
+              and (plan_id is None or plan_id in {row["plan_id"], row["prior_plan_id"]})]
+    limit = max(1, min(int(limit), 100))
+    fields = {"event_id", "revision", "operation", "plan_id", "prior_plan_id", "reason", "source_ref", "occurred_at"}
+    return {
+        "portfolio_id": portfolio_id, "plans": list(reversed(plans))[:limit],
+        "events": [{key: value for key, value in event.items() if key in fields} for event in events[:limit]],
+        "total_plans": len(plans), "total_events": len(events),
+        "truncated": len(plans) > limit or len(events) > limit,
+    }

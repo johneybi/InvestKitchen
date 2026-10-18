@@ -16,6 +16,8 @@ It is not an auto-trading bot. The core idea is to keep facts, external opinions
 - **MCP transport** — ChatGPT/Codex-compatible stdio gateway and Secure MCP Tunnel deployment wiring
 - **Self-hosted deployment** — Synology-oriented Docker deployment templates
 
+- **Advisory Plan lifecycle** — native create/replace/close preview/apply with trusted approvals, preserved history and stored read-back; see [configuration and rollout](docs/native-plan-lifecycle.md).
+
 ## Product boundary
 
 ```text

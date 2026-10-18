@@ -128,7 +128,11 @@ class LocalToolRouter:
         }
 
     def _runtime_available(self, name: str) -> bool:
+        if name == "get_plan_history":
+            return self.gateway.plan_history_reader is not None
         if name in {
+            "preview_plan_update",
+            "apply_plan_update",
             "preview_knowledge_update",
             "apply_knowledge_update",
             "preview_portfolio_update",
@@ -174,6 +178,12 @@ class LocalToolRouter:
             )
         if name == "get_active_plans":
             return self.gateway.get_active_plans(arguments["portfolio_id"])
+        if name == "get_plan_history":
+            return self.gateway.get_plan_history(arguments["portfolio_id"], plan_id=arguments.get("plan_id"), limit=arguments.get("limit", 50))
+        if name == "preview_plan_update":
+            return self.gateway.preview_plan_update(arguments["update"])
+        if name == "apply_plan_update":
+            return self.gateway.apply_plan_update(arguments["preview_id"], arguments["confirmation"])
         if name == "get_current_knowledge":
             return self.gateway.get_current_knowledge(max_outlook=arguments.get("max_outlook", 20))
         if name == "search_knowledge":

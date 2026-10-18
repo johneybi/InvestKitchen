@@ -170,6 +170,8 @@ class ReadOnlyGatewayFacade:
         connector_review: Callable[[str], dict[str, Any]] | None = None,
         connector_discard: Callable[[str], None] | None = None,
         portfolio_ids: list[str] | None = None,
+        plan_history_reader: Callable[..., dict[str, Any]] | None = None,
+        plan_store: Any = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.manifest = load_instance_manifest(manifest) if isinstance(manifest, Path) else manifest
@@ -177,6 +179,8 @@ class ReadOnlyGatewayFacade:
         self.connector_handlers = dict(connector_handlers or {})
         self.connector_review = connector_review
         self.connector_discard = connector_discard
+        self.plan_history_reader = plan_history_reader
+        self.plan_store = plan_store
         self.portfolio_ids = sorted({str(value) for value in (portfolio_ids or []) if str(value)})
 
     def _capability_row(self, capability: str) -> dict[str, Any] | None:
@@ -406,6 +410,17 @@ class ReadOnlyGatewayFacade:
 
     def get_active_plans(self, portfolio_id: str) -> dict[str, Any]:
         return self._invoke("plan.active", {"portfolio_id": portfolio_id})
+
+    def get_plan_history(self, portfolio_id: str, *, plan_id: str | None = None, limit: int = 50) -> dict[str, Any]:
+        if self.plan_history_reader is None:
+            return {"status": "unavailable", "reason": "plan_history_unavailable"}
+        return _public_data(self.plan_history_reader(portfolio_id=portfolio_id, plan_id=plan_id, limit=limit))
+
+    def preview_plan_update(self, update: dict[str, Any]) -> dict[str, Any]:
+        return self._invoke_connector("preview_plan_update", {"update": update})
+
+    def apply_plan_update(self, preview_id: str, confirmation: str) -> dict[str, Any]:
+        return self._invoke_connector("apply_plan_update", {"preview_id": preview_id, "confirmation": confirmation})
 
     def build_decision_context(
         self,

@@ -17,6 +17,7 @@ MARKET_PROVIDER=${INVESTKITCHEN_MARKET_PROVIDER:-}
 MARKET_SECRET_FILE=${INVESTKITCHEN_MARKET_SECRET_FILE:-}
 CONNECTOR_WRITES=${INVESTKITCHEN_CONNECTOR_WRITES:-}
 POLICY_WRITES=${INVESTKITCHEN_POLICY_WRITES:-}
+PLAN_WRITES=${INVESTKITCHEN_PLAN_WRITES:-}
 OPINION_WRITES=${INVESTKITCHEN_OPINION_WRITES:-}
 ACCOUNT_SYNC=${INVESTKITCHEN_ACCOUNT_SYNC:-}
 ACCOUNT_BINDING_FILE=${INVESTKITCHEN_ACCOUNT_BINDING_HOST_FILE:-}
@@ -33,6 +34,7 @@ if [ -r "$ENV_FILE" ]; then
   fi
   [ -n "$CONNECTOR_WRITES" ] || CONNECTOR_WRITES=$(sed -n 's/^INVESTKITCHEN_CONNECTOR_WRITES=//p' "$ENV_FILE" | tail -n 1)
   [ -n "$POLICY_WRITES" ] || POLICY_WRITES=$(sed -n 's/^INVESTKITCHEN_POLICY_WRITES=//p' "$ENV_FILE" | tail -n 1)
+  [ -n "$PLAN_WRITES" ] || PLAN_WRITES=$(sed -n 's/^INVESTKITCHEN_PLAN_WRITES=//p' "$ENV_FILE" | tail -n 1)
   [ -n "$OPINION_WRITES" ] || OPINION_WRITES=$(sed -n 's/^INVESTKITCHEN_OPINION_WRITES=//p' "$ENV_FILE" | tail -n 1)
   [ -n "$ACCOUNT_SYNC" ] || ACCOUNT_SYNC=$(sed -n 's/^INVESTKITCHEN_ACCOUNT_SYNC=//p' "$ENV_FILE" | tail -n 1)
   [ -n "$ACCOUNT_BINDING_FILE" ] || ACCOUNT_BINDING_FILE=$(sed -n 's/^INVESTKITCHEN_ACCOUNT_BINDING_HOST_FILE=//p' "$ENV_FILE" | tail -n 1)
@@ -43,6 +45,7 @@ MARKET_PROVIDER=${MARKET_PROVIDER:-none}
 MARKET_SECRET_FILE=${MARKET_SECRET_FILE:-$ROOT/secrets/toss-market-readonly.json}
 CONNECTOR_WRITES=${CONNECTOR_WRITES:-disabled}
 POLICY_WRITES=${POLICY_WRITES:-disabled}
+PLAN_WRITES=${PLAN_WRITES:-disabled}
 OPINION_WRITES=${OPINION_WRITES:-disabled}
 ACCOUNT_SYNC=${ACCOUNT_SYNC:-disabled}
 ACCOUNT_BINDING_FILE=${ACCOUNT_BINDING_FILE:-$ROOT/secrets/account-bindings.json}
@@ -51,6 +54,7 @@ NHPLUG_ACCOUNT_SECRET_FILE=${NHPLUG_ACCOUNT_SECRET_FILE:-$ROOT/secrets/nhplug-ac
 export INVESTKITCHEN_ACCOUNT_SYNC="$ACCOUNT_SYNC"
 export INVESTKITCHEN_CONNECTOR_WRITES="$CONNECTOR_WRITES"
 export INVESTKITCHEN_POLICY_WRITES="$POLICY_WRITES"
+export INVESTKITCHEN_PLAN_WRITES="$PLAN_WRITES"
 export INVESTKITCHEN_OPINION_WRITES="$OPINION_WRITES"
 
 for path in \
@@ -138,6 +142,9 @@ if account_sync:
 if policy_writes:
     permissions.extend(["policy.update", "operation.approve"])
     allowlist.extend(["preview_policy_update", "apply_policy_update"])
+if env.get("INVESTKITCHEN_PLAN_WRITES", "disabled") == "enabled":
+    permissions.extend(["plan.update", "operation.approve"])
+    allowlist.extend(["preview_plan_update", "apply_plan_update"])
 if opinion_writes:
     permissions.extend(["opinion.update", "operation.approve"])
     allowlist.extend(["preview_opinion_weighting_update", "apply_opinion_weighting_update"])

@@ -117,6 +117,252 @@
       "output_contract": "capability-result.schema.json"
     },
     {
+      "name": "get_plan_history",
+      "description": "Return bounded advisory Plan versions and curated lifecycle history for one authorized Portfolio. Internal approval receipts and raw journals are excluded.",
+      "read_only": true,
+      "required_permissions": [
+        "plan.read"
+      ],
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "portfolio_id"
+        ],
+        "properties": {
+          "portfolio_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "plan_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "advisory-plan-history"
+    },
+    {
+      "name": "preview_plan_update",
+      "description": "Stage creation, replacement or closure of one non-executing advisory Plan. Review the complete candidate and obtain explicit user confirmation before apply. Replacement requires the exact active plan_id.",
+      "read_only": true,
+      "destructive": false,
+      "required_permissions": [
+        "plan.update"
+      ],
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "update"
+        ],
+        "properties": {
+          "update": {
+            "type": "object",
+            "required": [
+              "operation",
+              "portfolio_id",
+              "source_ref",
+              "reason"
+            ],
+            "properties": {
+              "operation": {
+                "enum": [
+                  "create",
+                  "replace",
+                  "close"
+                ]
+              },
+              "portfolio_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "plan_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "plan": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "objective",
+                  "stages"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "objective": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "stages": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "actions"
+                      ],
+                      "properties": {
+                        "stage_id": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4000
+                        },
+                        "conditions": {
+                          "type": "array",
+                          "maxItems": 30,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4000
+                          }
+                        },
+                        "actions": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 100,
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "description"
+                            ],
+                            "properties": {
+                              "description": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4000
+                              },
+                              "action_id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4000
+                              },
+                              "account_id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4000
+                              },
+                              "symbol": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 4000
+                              },
+                              "conditions": {
+                                "type": "array",
+                                "maxItems": 30,
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4000
+                                }
+                              },
+                              "invalidation": {
+                                "type": "array",
+                                "maxItems": 30,
+                                "items": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 4000
+                                }
+                              },
+                              "parameters": {
+                                "type": "object"
+                              }
+                            },
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "global_invalidation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4000
+                  },
+                  "confirmation_sequence": {
+                    "type": "array",
+                    "maxItems": 30,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    }
+                  }
+                },
+                "additionalProperties": false
+              },
+              "source_ref": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
+      "name": "apply_plan_update",
+      "description": "Apply the exact staged advisory Plan change after explicit digest-bound user confirmation and trusted server approval; preserve prior revisions and verify authoritative read-back. Never authorizes orders.",
+      "read_only": false,
+      "destructive": false,
+      "requires_confirmation": true,
+      "required_permissions": [
+        "plan.update",
+        "operation.approve"
+      ],
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "preview_id",
+          "confirmation"
+        ],
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "confirmation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "connector-write-result"
+    },
+    {
       "name": "get_current_knowledge",
       "description": "Return the bounded committed current Knowledge view.",
       "read_only": true,

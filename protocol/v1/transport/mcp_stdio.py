@@ -54,6 +54,9 @@ _TOOL_CAPABILITY = {
     "get_opinion_weighting": "opinion.weighting.current",
     "build_opinion_consensus": "opinion.consensus",
     "get_active_plans": "plan.active",
+    "get_plan_history": None,
+    "preview_plan_update": None,
+    "apply_plan_update": None,
     "get_current_knowledge": "knowledge.current",
     "search_knowledge": "knowledge.search",
     "get_market_quote": "market.quote",
@@ -75,6 +78,8 @@ _TOOL_CAPABILITY = {
 }
 
 _CONNECTOR_WRITE_TOOLS = {
+    "preview_plan_update",
+    "apply_plan_update",
     "preview_knowledge_update",
     "apply_knowledge_update",
     "preview_portfolio_update",

@@ -1,0 +1,14 @@
+{
+  "authelia_authz_url": "http://127.0.0.1:19091/api/authz/forward-auth",
+  "authelia_cookie_name": "authelia_session",
+  "grants": [
+    {
+      "subject": "synthetic-owner",
+      "client_id": "synthetic-gemini-client",
+      "browser_username": "synthetic-owner",
+      "permissions": ["plan.update"],
+      "portfolio_scope": ["portfolio-alpha"],
+      "expires_at": "2030-01-01T00:00:00Z"
+    }
+  ]
+}

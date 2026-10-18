@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/plan-update.schema.json",
+  "title": "InvestKitchen advisory Plan lifecycle request",
+  "type": "object",
+  "required": [
+    "operation",
+    "portfolio_id",
+    "source_ref",
+    "reason"
+  ],
+  "properties": {
+    "operation": {
+      "enum": [
+        "create",
+        "replace",
+        "close"
+      ]
+    },
+    "portfolio_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "plan_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "plan": {
+      "type": "object",
+      "required": [
+        "title",
+        "objective",
+        "stages"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "required": [
+              "actions"
+            ],
+            "properties": {
+              "stage_id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "conditions": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4000
+                }
+              },
+              "actions": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 100,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "description"
+                  ],
+                  "properties": {
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "action_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "account_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "symbol": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 4000
+                    },
+                    "conditions": {
+                      "type": "array",
+                      "maxItems": 30,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      }
+                    },
+                    "invalidation": {
+                      "type": "array",
+                      "maxItems": 30,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4000
+                      }
+                    },
+                    "parameters": {
+                      "type": "object"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "global_invalidation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "confirmation_sequence": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    }
+  },
+  "additionalProperties": false
+}

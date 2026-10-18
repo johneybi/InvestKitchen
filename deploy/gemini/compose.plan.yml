@@ -1,0 +1,8 @@
+# Explicit opt-in overlay for compose.trial.yml. Keep the base state mount read-only.
+services:
+  runtime:
+    environment:
+      INVESTKITCHEN_PLAN_WRITES: enabled
+    volumes:
+      - ${GEMINI_PLAN_STORE_ROOT:?set the shared authoritative advisory-state/plans directory}:/var/lib/investkitchen/plans:rw
+      - ${GEMINI_PLAN_APPROVAL_ROOT:?set a private approvals directory outside Git}:/var/lib/investkitchen/plan-approvals:rw
