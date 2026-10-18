@@ -182,6 +182,8 @@ def main() -> int:
     parser.add_argument("--advisory-state-root", type=Path)
     parser.add_argument("--advisory-plan-root", type=Path,
                         help="Shared authoritative Plan directory, independently mountable from other advisory state")
+    parser.add_argument("--plan-verification-root", type=Path)
+    parser.add_argument("--plan-verification-id", help="Optional verification: namespace backed by a separate synthetic Plan store")
     parser.add_argument("--historical-decision-root", type=Path)
     parser.add_argument("--historical-transaction-root", type=Path)
     parser.add_argument("--portfolio-checkpoint-root", type=Path)
@@ -197,6 +199,7 @@ def main() -> int:
             personal_data_root=args.personal_data_root,
             native_store_root=args.native_store_root, advisory_state_root=args.advisory_state_root,
             advisory_plan_root=args.advisory_plan_root,
+            plan_verification_root=args.plan_verification_root, plan_verification_id=args.plan_verification_id,
             historical_decision_root=args.historical_decision_root,
             historical_transaction_root=args.historical_transaction_root,
             portfolio_checkpoint_root=args.portfolio_checkpoint_root,
@@ -217,6 +220,7 @@ def main() -> int:
             protected.extend(root.resolve() for root in (
                 args.portfolio_checkpoint_root, args.advisory_state_root,
                 args.advisory_plan_root,
+                args.plan_verification_root,
                 args.historical_decision_root, args.historical_transaction_root,
             ) if root is not None)
             if any(approval_root == root or approval_root.is_relative_to(root) or root.is_relative_to(approval_root)

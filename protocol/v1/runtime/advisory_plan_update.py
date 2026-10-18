@@ -229,11 +229,16 @@ def apply_plan_update(
 
 class PlanUpdateCoordinator:
     """Identity-bound, single-use, expiring previews; restart invalidates them."""
-    def __init__(self, store: AdvisoryPlanStore, approval_store: TrustedApprovalStore, principal: dict, grant: dict) -> None:
+    def __init__(self, store: AdvisoryPlanStore, approval_store: TrustedApprovalStore, principal: dict, grant: dict,
+                 *, portfolio_stores: dict[str, AdvisoryPlanStore] | None = None) -> None:
         self.store, self.approval_store = store, approval_store
         self.principal, self.grant = copy.deepcopy(principal), copy.deepcopy(grant)
         self.pending: dict[str, dict] = {}
         self.lock = threading.Lock()
+        self.portfolio_stores = dict(portfolio_stores or {})
+
+    def store_for(self, portfolio_id: str) -> AdvisoryPlanStore:
+        return self.portfolio_stores.get(portfolio_id, self.store)
 
     def review(self, preview_id: str) -> dict:
         with self.lock:
@@ -250,7 +255,7 @@ class PlanUpdateCoordinator:
         update = payload.get("update")
         _validate_request(update)
         authorize_plan(self.principal, self.grant, update["portfolio_id"])
-        preview = build_plan_update_preview(self.store, update)
+        preview = build_plan_update_preview(self.store_for(update["portfolio_id"]), update)
         with self.lock:
             self.pending = {key: value for key, value in self.pending.items()
                             if _parse(value["candidate"]["expires_at"]) > _now()}
@@ -272,5 +277,5 @@ class PlanUpdateCoordinator:
             interaction_ref="mcp-confirmation:" + digest([preview["preview_id"], preview["confirmation"]])[:24],
             approval_method="mcp_explicit_confirmation", ttl_seconds=300,
         )
-        return apply_plan_update(self.store, preview, approval, principal=self.principal, grant=self.grant,
+        return apply_plan_update(self.store_for(preview["candidate"]["portfolio_id"]), preview, approval, principal=self.principal, grant=self.grant,
                                  approval_verifier=self.approval_store.verify)

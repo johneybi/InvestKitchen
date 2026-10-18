@@ -161,6 +161,26 @@ granted by the Plan-only example.
 
 ## Verification and rollback
 
+For live client verification without changing real Plans, an operator may supply
+`--plan-verification-root` and `--plan-verification-id verification:<name>`.
+This namespace uses a separate synthetic store; both reads and writes route to
+that store, and the authoritative Plan directory remains untouched. The root
+must be separate from source, personal data, native journals, approvals and the
+real Plan store. Explicit grants must include this namespace, and Gemini still
+requires independent browser approval. Remove the temporary namespace and grants
+after verification. A real Portfolio ID cannot be used as the test namespace.
+
+An older stdio runtime with additional installed features may use
+`protocol/v1/deployment/plan_stdio_extension.py` instead of replacing its full
+runtime. Supply the identified `--base-runtime`, the exact
+`--base-transport-digest`, and the older stdio arguments; explicitly add
+`--enable-plan-writes` when enabling Plan authority. The extension uses this
+release's native Plan service and preserves existing tools, handlers and
+authorization hooks without editing the older runtime. It refuses a mismatched
+transport digest or a Plan service shadowed by another source. Record both
+source identities in the operator deployment manifest and retain the old
+launcher for rollback.
+
 Run `python -m pytest protocol/v1/tests -q` with the development dependencies.
 Synthetic coverage includes both transports, lifecycle/history/read-back,
 authorization/scope, tampering/revocation/expiry/replay, concurrent writes,

@@ -360,6 +360,8 @@ def main() -> int:
     parser.add_argument("--account-sync-max-age-seconds", type=int, default=300)
     parser.add_argument("--native-store-root", type=Path)
     parser.add_argument("--advisory-state-root", type=Path)
+    parser.add_argument("--plan-verification-root", type=Path)
+    parser.add_argument("--plan-verification-id")
     parser.add_argument("--historical-decision-root", type=Path)
     parser.add_argument("--historical-transaction-root", type=Path)
     parser.add_argument("--portfolio-checkpoint-root", type=Path)
@@ -400,6 +402,7 @@ def main() -> int:
             market_secret_file=args.market_secret_file,
             native_store_root=args.native_store_root,
             advisory_state_root=args.advisory_state_root,
+            plan_verification_root=args.plan_verification_root, plan_verification_id=args.plan_verification_id,
             historical_decision_root=args.historical_decision_root,
             historical_transaction_root=args.historical_transaction_root,
             portfolio_checkpoint_root=args.portfolio_checkpoint_root,
