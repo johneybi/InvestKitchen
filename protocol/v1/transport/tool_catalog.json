@@ -4,7 +4,7 @@
   "tools": [
     {
       "name": "get_capabilities",
-      "description": "Return installed, ready, and client-usable TradeMind capabilities for this instance.",
+      "description": "Return installed, ready, and client-usable InvestKitchen capabilities for this instance. 계좌·포트폴리오·Knowledge 조회 전에 실제 사용 가능한 기능을 확인합니다.",
       "read_only": true,
       "required_permissions": ["system.capabilities.read"],
       "input_schema": {
@@ -16,7 +16,7 @@
     },
     {
       "name": "list_portfolios",
-      "description": "Return the server-configured personal Portfolio IDs available to this client. Use this instead of guessing a portfolio_id.",
+      "description": "Discover the authorized InvestKitchen portfolio IDs before reading saved accounts, holdings or cash. 내 계좌·전체 포트폴리오 조회의 허용 범위를 찾습니다. IDs are not account details: call get_portfolio_state for each requested ID. Never guess a portfolio_id.",
       "read_only": true,
       "required_permissions": ["portfolio.read"],
       "input_schema": {
@@ -28,7 +28,7 @@
     },
     {
       "name": "get_portfolio_state",
-      "description": "Return the authoritative read-only portfolio projection for one explicit portfolio scope.",
+      "description": "Read saved investment accounts, broker/account names and types, holdings, quantities, cash, source dates and data gaps for one authorized portfolio_id from list_portfolios. 내 계좌·토스 계좌·보유 종목·잔고·ISA·IRP 조회에 사용합니다. Filter account names from returned facts; these stored observations do not log in to a brokerage or refresh a live balance.",
       "read_only": true,
       "required_permissions": ["portfolio.read"],
       "input_schema": {

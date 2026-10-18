@@ -97,8 +97,21 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
         return CallToolResult(content=[TextContent(type="text", text=message)], isError=True)
 
     server = Server(
-        "investkitchen", title="InvestKitchen", version="0.1.0",
-        instructions=("Read authoritative InvestKitchen facts. Discover portfolio scope first. " + (
+        "investkitchen", title="InvestKitchen", version="0.1.1",
+        description=(
+            "InvestKitchen / 인베스트키친: retrieve the user's saved investment accounts, "
+            "brokerage portfolios, holdings, quantities, cash balances and shared Knowledge. "
+            "내 계좌 조회, 토스 계좌, 보유 종목, 잔고, ISA, IRP, 전체 포트폴리오 조회에 사용합니다. "
+            "Reads return stored observations with source dates, not a direct brokerage login "
+            "or a live balance refresh. Available tools and access depend on server-side grants."
+        ),
+        instructions=(
+            "Use this app for saved account, holdings, cash and portfolio questions, including "
+            "내 계좌, 토스 계좌, ISA and IRP. Discover the authorized scope with list_portfolios, "
+            "then call get_portfolio_state for each requested portfolio; IDs alone are not account details. "
+            "Match broker names and account types against returned facts, keeping portfolios separate. "
+            "Use fresh reads for current-state follow-ups and preserve source dates, missing data and conflicts. "
+            "These are stored InvestKitchen observations; do not require a new brokerage login for a read. " + (
             "Only explicitly granted native updates are available. Preview first, present approval_url to the user, "
             "wait for their independent NAS browser approval, then apply the exact preview and confirm read-back. "
             "Never claim an approved preview is already saved."
