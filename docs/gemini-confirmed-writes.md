@@ -6,21 +6,46 @@ The optional HTTP write surface is implemented and tested with synthetic data.
 It is not automatically enabled on an existing NAS read connection. Deployment,
 OAuth reconnection, and actual Gemini write calls require separate verification.
 
-It exposes two native update pairs: `preview_knowledge_update` /
-`apply_knowledge_update`, and `preview_portfolio_update` /
-`apply_portfolio_update`. Knowledge is instance-wide; portfolio observations are
-restricted to explicitly granted IDs. Brokerage execution and other native write
-families are outside this adapter's current scope.
+It exposes `preview_knowledge_update` / `apply_knowledge_update` and
+`preview_portfolio_update` / `apply_portfolio_update`. An explicitly enabled
+[Plan profile](native-plan-lifecycle.md) also exposes `preview_plan_update` /
+`apply_plan_update` for creation, replacement and closure. Knowledge is
+instance-wide; Portfolio observations and Plans are restricted to granted IDs.
+None of these tools authorizes brokerage execution.
+
+Before the first preview, the operator must identify the separate NAS approval
+login account and provide its login details through a private handoff outside
+Git and chat. The account must match the server's `browser_username`; Google
+OAuth client credentials are not browser login credentials. Do not assume the
+user knows a service account or shares its password with a computer or NAS
+administrator account. Have the user sign in independently before starting the
+preview window. Never log in or approve on their behalf.
 
 1. Select the actual InvestKitchen connector. Check discovery and
    `get_capabilities.remote_write_tools` before offering an update.
 2. Read current state and preview the exact update. This does not save anything.
 3. Give the user `approval_url`. They must open it themselves, log into the NAS,
    review the complete canonical change, and approve or reject it. The preview
-   expires within five minutes. Never operate that approval UI for the user.
+   expires at its returned deadline (five minutes by default). Never operate that
+   approval UI for the user.
 4. After the user approves there, call the matching apply tool with the returned
    `preview_id` and `confirmation`. Complete any Gemini write confirmation too.
    Report success only for `status=applied` and `read_back.matches=true`.
+
+Use only the newest approval link. A login redirect may return to the older
+request embedded in its URL. If the approval page says the request cannot be
+found or access is unavailable, verify login readiness, expiry and the matching
+server approval record before claiming approval succeeded. Obtain a fresh
+preview when required and send one clearly identified replacement link.
+After NAS approval, complete Gemini's own write confirmation while the same
+preview is still valid; neither confirmation extends its original deadline.
+
+For slower Plan reviews, the operator may set `plan_preview_ttl_seconds` in the
+server-owned write config to an integer from 60 through 900 seconds. The default
+is 300. This setting applies only to Plan previews; clients cannot select it.
+The browser deadline is capped by the canonical candidate and write grant, and
+approval does not restart it. The Plan example opts into 900 seconds. Knowledge
+and Portfolio previews retain their five-minute limit.
 
 Browser approval alone does not save. Expiry, restart, stale state, rejection, or
 a failed apply requires a fresh preview and approval. For an uncertain response,
@@ -42,10 +67,11 @@ with the same MCP URL and existing client credentials. Gemini may reject a
 duplicate registration while the original remains. Keep credentials and callback
 configuration private.
 
-Verify `investkitchen.write` in NAS consent, six read tools plus four preview/apply
-tools in Gemini discovery, and a successful actual read. Consent and discovery do
-not verify persistence: that requires the exact user-approved preview, manual NAS
-approval, apply and read-back sequence above.
+Verify `investkitchen.write` in NAS consent, the configured read and write tools
+in Gemini discovery, and a successful actual read. The base profile has six read
+and four preview/apply tools; enabling Plan reads and writes adds two of each.
+Consent and discovery do not verify persistence: that requires the exact
+user-approved preview, manual NAS approval, apply and read-back sequence above.
 
 Operators must follow the [deployment runbook](../deploy/gemini/confirmed-writes.md).
 The old read grant does not authorize enabling live writes.

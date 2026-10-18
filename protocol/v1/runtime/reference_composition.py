@@ -112,6 +112,7 @@ class _ConnectorWriteCoordinator:
         advisory_policies: AdvisoryPolicyStore | None = None,
         advisory_plans: AdvisoryPlanStore | None = None,
         plan_portfolio_stores: dict[str, AdvisoryPlanStore] | None = None,
+        plan_preview_ttl_seconds: int = 300,
         opinion_weighting: OpinionWeightingStore | None = None,
     ) -> None:
         self.native_store = native_store
@@ -124,7 +125,8 @@ class _ConnectorWriteCoordinator:
         self.account_providers = dict(account_providers or {})
         self.account_sync_max_age_seconds = int(account_sync_max_age_seconds)
         self.advisory_policies = advisory_policies
-        self.plan_updates = (PlanUpdateCoordinator(advisory_plans, approval_store, principal, grant, portfolio_stores=plan_portfolio_stores)
+        self.plan_updates = (PlanUpdateCoordinator(advisory_plans, approval_store, principal, grant,
+                             portfolio_stores=plan_portfolio_stores, preview_ttl_seconds=plan_preview_ttl_seconds)
                              if advisory_plans is not None else None)
         self.opinion_weighting = opinion_weighting
         self.pending: dict[str, dict[str, Any]] = {}
@@ -796,6 +798,7 @@ def build_reference_gateway(
     advisory_plan_root: Path | None = None,
     plan_verification_root: Path | None = None,
     plan_verification_id: str | None = None,
+    plan_preview_ttl_seconds: int = 300,
     historical_decision_root: Path | None = None,
     historical_transaction_root: Path | None = None,
     portfolio_checkpoint_root: Path | None = None,
@@ -1044,6 +1047,7 @@ def build_reference_gateway(
             advisory_policies=advisory_policies,
             advisory_plans=advisory_plans,
             plan_portfolio_stores=plan_portfolio_stores,
+            plan_preview_ttl_seconds=plan_preview_ttl_seconds,
             opinion_weighting=opinion_weighting,
         )
         connector_handlers = coordinator.handlers()

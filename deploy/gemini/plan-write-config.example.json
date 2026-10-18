@@ -1,6 +1,7 @@
 {
   "authelia_authz_url": "http://127.0.0.1:19091/api/authz/forward-auth",
   "authelia_cookie_name": "authelia_session",
+  "plan_preview_ttl_seconds": 900,
   "grants": [
     {
       "subject": "synthetic-owner",

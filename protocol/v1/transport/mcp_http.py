@@ -242,6 +242,7 @@ def main() -> int:
                                 "tool_allowlist": [*WRITE_TOOLS, *APPLY_TOOLS],
                                 "issued_at": now, "expires_at": expiry}
                 return build_reference_gateway(**runtime_args, approval_store_root=approval_root / binding,
+                                               plan_preview_ttl_seconds=config.plan_preview_ttl_seconds,
                                                write_principal=principal, write_grant=native_grant)
 
             writes = ConfirmedWriteSurface(verifier.config, config, writer_factory,
