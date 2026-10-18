@@ -1,5 +1,8 @@
 # Gemini client — read-only development profile
 
+An optional [confirmed update profile](gemini-confirmed-writes.md) adds native writes with separate grants and browser approval. It is not automatically enabled on an existing read connection.
+
+
 [한국어 가이드](gemini-client-usage.ko.md)
 
 Tracked by [issue #3](https://github.com/johneybi/InvestKitchen/issues/3).
@@ -116,6 +119,30 @@ flow. If Dynamic Client Registration is unavailable, Google's UI permits enterin
 operator-provisioned OAuth client credentials under Advanced features. Record
 the actual authenticated client ID in the server-side grant; do not assume a
 display name such as "Gemini" is authenticated identity.
+
+## Start a chat with the registered app
+
+Open a [new English-UI chat](https://gemini.google.com/app?hl=en); the prompt itself
+can be Korean. Type `@` directly in the composer and click the actual app under
+**Connectors**, such as `InvestKitchen NAS`. The similarly named entry under
+**Skills** supplies instructions, so select the connector separately. Pasting a
+complete `@App name` string may not open or select a mention.
+
+Once the selected-app marker appears, ask for the allowed portfolio list and
+check the actual response before continuing. Flash is the verified mode. If
+Gemini says no MCP tools are available, check the connector selection for that
+chat first. Registration or an enabled skill alone does not establish tool use
+for a response. If the app is absent, check the English UI and connection
+settings. An authentication error from an actual call is a separate connection
+failure; do not infer private state or report success.
+
+The page language may differ between PCs signed into the same account. In the
+observed account, the same conversation and Flash mode offered only the skill
+in the Korean mention menu; appending `?hl=en` to that conversation URL exposed
+the NAS connector. An existing conversation can use the English UI while prompts
+remain Korean. A model response saying no MCP tools are available does not by
+itself establish a NAS outage or PC-bound access. Distinguish absent tools from
+an authentication error returned by an actual call.
 
 ## Register the skill; ZIP is optional
 

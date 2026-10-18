@@ -167,12 +167,16 @@ class ReadOnlyGatewayFacade:
         manifest: dict[str, Any] | Path,
         handlers: dict[str, CapabilityHandler] | None = None,
         connector_handlers: dict[str, ConnectorHandler] | None = None,
+        connector_review: Callable[[str], dict[str, Any]] | None = None,
+        connector_discard: Callable[[str], None] | None = None,
         portfolio_ids: list[str] | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.manifest = load_instance_manifest(manifest) if isinstance(manifest, Path) else manifest
         self.handlers = handlers or build_compatibility_handlers(self.workspace)
         self.connector_handlers = dict(connector_handlers or {})
+        self.connector_review = connector_review
+        self.connector_discard = connector_discard
         self.portfolio_ids = sorted({str(value) for value in (portfolio_ids or []) if str(value)})
 
     def _capability_row(self, capability: str) -> dict[str, Any] | None:
