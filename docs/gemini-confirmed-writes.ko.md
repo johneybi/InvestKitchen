@@ -63,6 +63,17 @@ Knowledge와 포트폴리오 관측 미리보기는 기존 5분 제한을 유지
 
 ## 연결에 쓰기 도구가 보이지 않을 때
 
+HTTP 도구 선언은 고정값을 `const`와 함께 명시적인 `type`·단일 값 `enum`으로
+안내한다. 예를 들어 Knowledge는 `protocol_version="1.0-draft"`,
+`request_type="knowledge.commit"`이며 포트폴리오 관측 갱신은
+`request_version=1`이다. Gemini가 선언을 변환하면서 `const`만 있는 필드를 빈
+규격으로 표시하는 경우에 대비한다. 서버 검증과 별도 NAS 승인은 그대로 유지된다.
+
+기존 대화에서 `Transport for env PROD not found in configuration`이 발생하면
+새 채팅에서 실제 연결 앱을 선택해 읽기를 확인한다. 서버 수정이 Google의 기존
+대화 연결까지 복구한다는 뜻은 아니다. 규격 호환 시험, NAS 배포, Gemini 실제
+미리보기·승인 링크 발급은 각각 구분해서 확인한다.
+
 운영자가 쓰기 프로필을 배포한 뒤에도 기존 앱은 읽기 권한만 요청할 수 있다.
 서버의 최초 OAuth 인증 응답과 메타데이터에 `investkitchen.write`가 포함되는지
 확인하고 다시 인증한다. Google 계정에서 연결을 해제한 뒤 재연결해도 같은 읽기

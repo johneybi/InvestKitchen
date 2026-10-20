@@ -76,6 +76,8 @@ def test_gemini_plan_lifecycle_requires_independent_human_approval_and_requeries
     gateway = backends['fixture-reader']
     tools = {t['name']: t for t in _post(client, 'tools/list', headers=headers).json()['result']['tools']}
     assert tools['preview_plan_update']['annotations']['readOnlyHint'] is True
+    operation = tools['preview_plan_update']['inputSchema']['properties']['update']['properties']['operation']
+    assert operation['type'] == 'string' and operation['enum'] == ['create', 'replace', 'close']
     assert tools['apply_plan_update']['annotations']['readOnlyHint'] is False
     assert 'apply_portfolio_update' not in tools and 'apply_knowledge_update' not in tools
     assert 'get_active_plans' in tools and 'get_plan_history' in tools
