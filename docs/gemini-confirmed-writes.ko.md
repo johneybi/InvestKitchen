@@ -18,6 +18,35 @@ Knowledge는 인스턴스 전체가 공유한다. 포트폴리오 쓰기는 명�
 포트폴리오 관측 갱신은 증권사 주문 실행이 아니다. 다른 네이티브 쓰기 기능까지
 모두 지원한다는 뜻도 아니다. [기존 조회 가이드](gemini-client-usage.ko.md)는 계속 유효하다.
 
+## 복잡한 입력을 바꾸는 클라이언트의 호환 옵션
+
+운영자는 `--write-input-format json-string`을 명시해 미리보기 입력을 단순한 문자열
+형태로 노출할 수 있다. 기본 `object` 프로필과 stdio 계약은 그대로다. 이 옵션에서는
+해당 권한으로 사용할 수 있는 `get_write_contract`를 먼저 호출해 원래 입력 규격을
+읽고, 규격의 `update` 객체만 JSON 문자열로 직렬화해 `update_json`에 전달한다.
+적용 도구와 NAS 직접 승인 절차는 바뀌지 않는다. 이 선택 프로필에서는 오래된 도구
+목록의 객체 입력을 거부하고 도구 규격을 새로 읽도록 안내한다. 기본 객체 프로필의
+기존 입력은 계속 지원한다.
+
+원문 전체, 빈 객체, 생략한 선택 필드를 그대로 보존한다. 특히 빈 `current_state`를
+규격에 있는 모든 필드로 채우면 기존 시장 상태에 영향을 줄 수 있다. 별도로 준비한
+초안은 독립적으로 계산한 `expected_payload_digest`도 함께 전달한다. 서버는 해시가
+다르면 후보를 만들기 전에 거부한다. 모델이 임의로 만들어 낸 해시는 원문 보존의
+증거가 아니다. 신뢰할 수 있는 호출자는 Python의 `json`, `hashlib`로 준비할 수 있다.
+
+```python
+canonical = json.dumps(update, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":"), allow_nan=False)
+arguments = {"update_json": canonical,
+             "expected_payload_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
+```
+
+미리 계산한 해시가 없다면 해당 인수는 생략하고 추측해서 넣지 않는다. 중복 JSON 키,
+무한대·NaN, 잘못된 포장 인수와 과도한 입력은 거부한다. HTTP 본문 크기 제한,
+전체 원본 규격 검증, 포트폴리오 범위, 권한 만료와 NAS 승인은 유지된다. 합성 시험
+통과와 실제 Gemini 동작 확인은 별개다. 실제 결과의 해시와 변경 필드를 대조한 뒤
+정확한 미리보기의 승인 링크만 전달한다.
+
 ## 승인 로그인부터 준비하기
 
 운영자는 최초 미리보기 전에 별도 NAS 승인 로그인에 사용할 계정을 안내하고,

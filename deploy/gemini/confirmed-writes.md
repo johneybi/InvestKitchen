@@ -67,7 +67,15 @@ python -m protocol.v1.transport.mcp_http \
 
 These are synthetic paths. Use the deployment's actual identified runtime root.
 Preflight opens configured stores and may initialize lock files; it does not
-apply updates. Remove `--check-config` only for the service startup. Continue to
+apply updates. For a client that reshapes nested preview arguments, add
+`--write-input-format json-string` to both preflight and the exact service
+command. It adds a grant-filtered contract reader and flat JSON-string preview
+declarations; it changes neither native validation nor apply/approval rules.
+Keep `object` as the default for other deployments. Compare the submitted update
+digest with the actual preview and changed fields, and retain the old command
+for rollback. Activation clears in-memory previews; obtain fresh links afterward.
+
+Remove `--check-config` only for the service startup. Continue to
 bind MCP and authentication to loopback. The trial Keycloak Compose profile is
 read-only and does not provide this Authelia approval profile.
 
