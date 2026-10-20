@@ -109,6 +109,28 @@ def _approve(client, preview):
     assert "아직 저장하지 않았습니다" in response.text
 
 
+def test_legacy_stateless_preview_still_binds_identity_and_browser_approval(setup, signing_key):
+    client, headers, _, _, _ = setup
+    legacy = {**headers, "MCP-Protocol-Version": "2025-11-25", "Mcp-Session-Id": "closed-fixture-session"}
+    def call(name, args, selected=legacy):
+        response = client.post("/mcp", headers=selected, json={"jsonrpc": "2.0", "id": 1,
+            "method": "tools/call", "params": {"name": name, "arguments": args}})
+        assert response.status_code == 200
+        return response.json()["result"]
+    review = call("preview_knowledge_update", {"update": knowledge_request()})["structuredContent"]
+    assert review["status"] == "review_required" and review["approval_url"]
+    args = {key: review[key] for key in ["preview_id", "confirmation"]}
+    assert call("apply_knowledge_update", args)["isError"]
+    other = {**legacy, "Authorization": "Bearer " + _jwt(signing_key, sub="fixture-other",
+                                                        scope="investkitchen.read " + WRITE_SCOPE)}
+    _approve(client, review)
+    assert call("apply_knowledge_update", args, other)["isError"]
+    client.delete("/mcp", headers=legacy)
+    fresh_transport = {key: value for key, value in legacy.items() if key != "Mcp-Session-Id"}
+    result = call("apply_knowledge_update", args, fresh_transport)["structuredContent"]
+    assert result["status"] == "applied" and result["read_back"]["matches"] is True
+
+
 @pytest.mark.parametrize("kind,field,expected", [("knowledge", "request_type", "knowledge.commit"),
                                                 ("knowledge", "protocol_version", "1.0-draft"),
                                                 ("portfolio", "request_version", 1)])

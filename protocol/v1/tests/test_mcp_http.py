@@ -318,23 +318,40 @@ def test_http_authentication_metadata_modern_reads_and_denied_writes(signing_key
             assert denied.json()["result"]["isError"] is True
 
 
-def test_legacy_initialize_and_session_identity_isolation(signing_key):
+@pytest.mark.parametrize("protocol", ["2025-03-26", "2025-11-25"])
+def test_legacy_repeated_requests_do_not_depend_on_session_ids_and_keep_identity_scope(signing_key, protocol):
     with TestClient(create_http_app(_gateway(), _verifier(signing_key)), base_url="https://mcp.example.test") as client:
         headers = {"Accept": HEADERS["Accept"], "Authorization": "Bearer " + _jwt(signing_key)}
         initialized = client.post("/mcp", headers=headers, json={"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
-            "protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "fixture", "version": "1"},
+            "protocolVersion": protocol, "capabilities": {}, "clientInfo": {"name": "fixture", "version": "1"},
         }})
         assert initialized.status_code == 200
-        assert initialized.json()["result"]["protocolVersion"] == "2025-11-25"
-        session_headers = {**headers, "MCP-Protocol-Version": "2025-11-25", "Mcp-Session-Id": initialized.headers["Mcp-Session-Id"]}
+        assert initialized.json()["result"]["protocolVersion"] == protocol
+        assert "Mcp-Session-Id" not in initialized.headers
+        session_headers = {**headers, "MCP-Protocol-Version": protocol, "Mcp-Session-Id": "expired-fixture-session"}
         notification = client.post("/mcp", headers=session_headers, json={"jsonrpc": "2.0", "method": "notifications/initialized"})
         assert notification.status_code == 202
         listing = client.post("/mcp", headers=session_headers, json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         assert listing.status_code == 200
         assert listing.json()["result"]["tools"]
-        other_headers = {**session_headers, "Authorization": "Bearer " + _jwt(signing_key, sub="fixture-other")}
-        denied = client.post("/mcp", headers=other_headers, json={"jsonrpc": "2.0", "id": 3, "method": "tools/list"})
-        assert denied.status_code in {403, 404}
+        # The caller is authenticated on every request, including when a client
+        # reuses a stale ID, closes a transport, or refreshes its access token.
+        client.delete("/mcp", headers=session_headers)
+        for subject, expected in [("fixture-reader", "portfolio-alpha"), ("fixture-other", "portfolio-beta")]:
+            other_headers = {**session_headers, "Authorization": "Bearer " + _jwt(signing_key, sub=subject)}
+            read = client.post("/mcp", headers=other_headers, json={"jsonrpc": "2.0", "id": 3,
+                "method": "tools/call", "params": {"name": "list_portfolios", "arguments": {}}})
+            assert read.json()["result"]["structuredContent"]["portfolio_ids"] == [expected]
+            denied = client.post("/mcp", headers=other_headers, json={"jsonrpc": "2.0", "id": 4,
+                "method": "tools/call", "params": {"name": "get_portfolio_state", "arguments": {
+                    "portfolio_id": "portfolio-beta" if expected == "portfolio-alpha" else "portfolio-alpha"}}})
+            assert denied.json()["result"]["isError"] is True
+        unauthenticated = client.post("/mcp", headers={**session_headers, "Authorization": "Bearer invalid"},
+            json={"jsonrpc": "2.0", "id": 5, "method": "tools/list"})
+        assert unauthenticated.status_code == 401
+        expired = {**session_headers, "Authorization": "Bearer " + _jwt(signing_key, exp=int(time.time()) - 1)}
+        assert client.post("/mcp", headers=expired, json={"jsonrpc": "2.0", "id": 6, "method": "tools/list"}).status_code == 401
+        assert client.post("/mcp", headers=session_headers, json={"jsonrpc": "2.0", "id": 7, "method": "tools/list"}).status_code == 200
 
 
 def test_http_errors_do_not_expose_local_paths_and_reject_host_origin_and_large_body(signing_key):
