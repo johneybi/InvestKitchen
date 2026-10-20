@@ -23,6 +23,38 @@ verify a read in a new chat with the actual connector selected. A server schema
 fix does not repair Google's conversation bindings. Synthetic tests, deployment,
 and actual Gemini preview/approval-link verification are separate results.
 
+For clients that reshape nested function arguments, operators can explicitly
+select `--write-input-format json-string`. The default `object` profile and stdio
+contracts are unchanged. In this optional HTTP profile the authorized preview
+tools advertise a flat `update_json` string. `get_write_contract(preview_tool=...)`
+returns the original canonical input schema, only with the same unexpired write
+grant and scope as the selected preview. Apply tools and their independent
+approval requirements are unchanged. Cached object-format preview calls are
+rejected in this opt-in profile with a tool-refresh instruction; clients must
+rediscover its declarations. The default object profile remains compatible.
+
+Read the contract, construct its `update` object, and serialize that object into
+`update_json`. Preserve the entire source note, empty objects and omitted optional
+fields. A client must not expand an empty `current_state` with schema defaults.
+For a separately prepared update, also supply its independently computed
+`expected_payload_digest`. The server rejects a mismatch before staging; a hash
+invented by the model does not prove the original was preserved. A trusted caller
+can prepare the envelope with Python's `json` and `hashlib` modules:
+
+```python
+canonical = json.dumps(update, ensure_ascii=False, sort_keys=True,
+                       separators=(",", ":"), allow_nan=False)
+arguments = {"update_json": canonical,
+             "expected_payload_digest": hashlib.sha256(canonical.encode("utf-8")).hexdigest()}
+```
+
+Omit the digest when it is unavailable; never invent one. JSON parsing rejects
+duplicate keys, non-finite numbers, invalid envelopes and oversized input. HTTP
+body limits, full canonical validation, portfolio scope, grant expiry and NAS
+approval remain authoritative. Synthetic tests do not verify a deployed client's
+handling of a particular note. Compare the actual returned digest and changed
+fields before presenting its approval link.
+
 HTTP is sessionless for legacy MCP clients as well. Reused or expired transport
 IDs do not replace per-request OAuth identity, scope and grant checks. Pending
 previews remain server-side and bound to the OAuth identity/client, with the

@@ -40,7 +40,7 @@ def _write_config(**overrides):
 
 
 @pytest.fixture
-def setup(tmp_path, signing_key):
+def setup(tmp_path, signing_key, request):
     native, checkpoints = _stores(tmp_path)
     personal = _synthetic_bundle(tmp_path / "personal")
     resource = _config()
@@ -69,7 +69,8 @@ def setup(tmp_path, signing_key):
     # Both IDs are configured in the read facade; beta has no checkpoint to mutate.
     read_gateway.portfolio_ids = ["portfolio-alpha", "portfolio-beta"]
     verifier = JWTTokenVerifier(resource, _jwks(signing_key))
-    app = create_http_app(read_gateway, verifier, writes=writes)
+    app = create_http_app(read_gateway, verifier, writes=writes,
+                          write_input_format=getattr(request, "param", "object"))
     with TestClient(app, base_url="https://mcp.example.test") as client:
         headers = {**HEADERS, "Authorization": "Bearer " + _jwt(signing_key, scope="investkitchen.read " + WRITE_SCOPE)}
         yield client, headers, writes, now, backends
