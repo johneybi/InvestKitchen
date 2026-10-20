@@ -11,6 +11,7 @@ import hashlib
 import json
 import re
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -31,18 +32,22 @@ from starlette.routing import Route
 from protocol.v1.runtime.reference_composition import build_reference_gateway
 from protocol.v1.security.oauth_resource import JWTTokenVerifier, load_oauth_resource
 from protocol.v1.transport.client_schema import client_tool_schema
-from protocol.v1.transport.mcp_read_surface import ReadSurfaceError, RemoteReadSurface
+from protocol.v1.transport.http_diagnostics import TransportDiagnostics, private_transport_diagnostics
+from protocol.v1.transport.mcp_read_surface import READ_TOOLS, ReadSurfaceError, RemoteReadSurface
 from protocol.v1.transport.mcp_confirmed_writes import (
     APPLY_TOOLS, WRITE_SCOPE, WRITE_TOOLS, ConfirmedWriteConfig, ConfirmedWriteSurface,
 )
 
 
 class NoStoreMiddleware:
-    def __init__(self, app, authorization_scopes: tuple[str, ...] = ()) -> None:
+    def __init__(self, app, authorization_scopes: tuple[str, ...] = (),
+                 diagnostics: TransportDiagnostics | None = None) -> None:
         self.app = app
         self.authorization_scopes = authorization_scopes
+        self.diagnostics = diagnostics
 
     async def __call__(self, scope, receive, send):
+        started = time.monotonic()
         async def no_cache(message):
             if message["type"] == "http.response.start":
                 headers = MutableHeaders(scope=message)
@@ -59,12 +64,18 @@ class NoStoreMiddleware:
                     else:
                         challenge += ", " + guidance
                     headers["WWW-Authenticate"] = challenge
+                if self.diagnostics is not None and scope.get("path") == "/mcp":
+                    request_headers = dict(scope.get("headers", []))
+                    self.diagnostics.http(scope.get("method", ""),
+                        request_headers.get(b"mcp-protocol-version", b"").decode("ascii", errors="replace"),
+                        b"mcp-session-id" in request_headers, message["status"], time.monotonic() - started)
             await send(message)
 
         await self.app(scope, receive, no_cache)
 
 
-def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWriteSurface | None = None):
+def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWriteSurface | None = None,
+                    diagnostics: TransportDiagnostics | None = None):
     if writes is not None and writes.resource != verifier.config:
         raise ValueError("Read and write OAuth resource bindings must match")
     surface = RemoteReadSurface(gateway, verifier.config)
@@ -77,10 +88,15 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
         if writes is not None:
             tools.extend(writes.list_tools(token))
         tools = [{**tool, "inputSchema": client_tool_schema(tool["inputSchema"])} for tool in tools]
+        if diagnostics is not None:
+            diagnostics.listed(len(tools))
         return ListToolsResult(tools=[Tool.model_validate(tool) for tool in tools], ttlMs=0, cacheScope="private")
 
     async def call_tool(ctx, params):
         token = get_access_token()
+        started = time.monotonic()
+        if diagnostics is not None:
+            diagnostics.tool(params.name, "started")
         try:
             selected = writes if writes is not None and params.name in (WRITE_TOOLS.keys() | APPLY_TOOLS.keys()) else surface
             value = await anyio.to_thread.run_sync(selected.call_tool, token, params.name, params.arguments or {})
@@ -88,18 +104,27 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
                 value = {**value, "remote_write_tools": [tool["name"] for tool in writes.list_tools(token)],
                          "write_approval": "separate_authenticated_browser_review"}
             is_error = isinstance(value, dict) and value.get("status") in {"blocked", "unavailable", "error"}
-            return CallToolResult(
+            result = CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(value, ensure_ascii=False, separators=(",", ":")))],
                 structuredContent=value, isError=is_error,
             )
+            if diagnostics is not None:
+                diagnostics.tool(params.name, value.get("status", "ok"), time.monotonic() - started)
+            return result
         except ReadSurfaceError as exc:
             message = str(exc)
+            outcome = ("invalid_arguments" if message == "Invalid tool arguments" else "not_authorized"
+                       if message in {"Authentication required", "Write authorization required",
+                                      "Requested portfolio is not authorized"} else "request_rejected")
         except Exception:
             message = "InvestKitchen request failed"
+            outcome = "internal_error"
+        if diagnostics is not None:
+            diagnostics.tool(params.name, outcome, time.monotonic() - started)
         return CallToolResult(content=[TextContent(type="text", text=message)], isError=True)
 
     server = Server(
-        "investkitchen", title="InvestKitchen", version="0.1.1",
+        "investkitchen", title="InvestKitchen", version="0.1.2",
         description=(
             "InvestKitchen / 인베스트키친: retrieve the user's saved investment accounts, "
             "brokerage portfolios, holdings, quantities, cash balances and shared Knowledge. "
@@ -124,8 +149,8 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
     resource = urlsplit(verifier.config.resource_url)
     origin = f"https://{resource.netloc}"
     app = server.streamable_http_app(
-        streamable_http_path="/mcp", json_response=True,
-        max_request_body_size=65536, max_sessions=100, session_idle_timeout=300,
+        streamable_http_path="/mcp", json_response=True, stateless_http=True,
+        max_request_body_size=65536,
         auth=AuthSettings(
             issuer_url=AnyHttpUrl(verifier.config.issuer_url),
             resource_server_url=AnyHttpUrl(verifier.config.resource_url),
@@ -159,7 +184,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
     if writes is not None:
         app.router.routes.extend(writes.routes())
     # Authenticated reads and errors must not be cached by an ingress proxy.
-    app.add_middleware(NoStoreMiddleware, authorization_scopes=(
+    app.add_middleware(NoStoreMiddleware, diagnostics=diagnostics, authorization_scopes=(
         (*verifier.config.required_scopes, WRITE_SCOPE) if writes is not None else ()
     ))
     return app
@@ -173,6 +198,8 @@ def main() -> int:
                         help="Optional expiring grants and loopback browser-authentication binding")
     parser.add_argument("--approval-store-root", type=Path,
                         help="Private approval evidence, separate from source and authoritative stores")
+    parser.add_argument("--transport-diagnostics-root", type=Path,
+                        help="Optional private directory for bounded method/status events without request data")
     parser.add_argument("--check-config", action="store_true",
                         help="Validate configured surfaces and stores without listening or applying updates")
     parser.add_argument("--host", choices=("127.0.0.1", "::1"), default="127.0.0.1")
@@ -249,7 +276,19 @@ def main() -> int:
 
             writes = ConfirmedWriteSurface(verifier.config, config, writer_factory,
                                            audit_root=approval_root / "browser-confirmations")
-        app = create_http_app(gateway, verifier, writes=writes)
+        diagnostics = None
+        if args.transport_diagnostics_root is not None:
+            protected = [args.runtime_root, args.personal_data_root, args.manifest,
+                         args.oauth_config, args.public_jwks]
+            protected.extend(path for path in (
+                args.native_store_root, args.advisory_state_root, args.advisory_plan_root,
+                args.plan_verification_root, args.historical_decision_root,
+                args.historical_transaction_root, args.portfolio_checkpoint_root,
+                args.write_config, args.approval_store_root,
+            ) if path is not None)
+            diagnostics = private_transport_diagnostics(args.transport_diagnostics_root, protected,
+                set(READ_TOOLS) | set(WRITE_TOOLS) | set(APPLY_TOOLS))
+        app = create_http_app(gateway, verifier, writes=writes, diagnostics=diagnostics)
     except (OSError, ValueError, KeyError, TypeError, RuntimeError):
         sys.stderr.write("InvestKitchen HTTP MCP configuration error\n")
         return 2

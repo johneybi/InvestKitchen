@@ -23,6 +23,21 @@ verify a read in a new chat with the actual connector selected. A server schema
 fix does not repair Google's conversation bindings. Synthetic tests, deployment,
 and actual Gemini preview/approval-link verification are separate results.
 
+HTTP is sessionless for legacy MCP clients as well. Reused or expired transport
+IDs do not replace per-request OAuth identity, scope and grant checks. Pending
+previews remain server-side and bound to the OAuth identity/client, with the
+same independent browser approval and expiry checks. This HTTP profile does not
+use server-initiated back-channel requests or stream resumption.
+
+Operators may opt into `--transport-diagnostics-root`, a separate service-owned
+0700 directory outside source, configuration, canonical stores and approval
+stores. Its 0600 `transport-events.jsonl` is capped at 256 KiB and contains only
+fixed tool names, outcome categories, HTTP status, protocol date, presence of a
+session header and timings. It never records arguments, credentials, identities,
+approval URLs or raw audit records. Diagnostics default to off and logging
+failure cannot authorize or block a write. Compare those events with actual
+client attempts before attributing a connection failure to Google or the NAS.
+
 Before the first preview, the operator must identify the separate NAS approval
 login account and provide its login details through a private handoff outside
 Git and chat. The account must match the server's `browser_username`; Google
