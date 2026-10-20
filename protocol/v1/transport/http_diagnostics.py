@@ -57,11 +57,20 @@ class TransportDiagnostics:
             # Optional diagnostics cannot authorize, block, or change a write.
             pass
 
-    def http(self, method: str, protocol: str, has_session: bool, status: int, elapsed: float):
+    def http(self, method: str, protocol: str, has_session: bool, status: int, elapsed: float,
+             *, has_bearer: bool = False):
         self._append({"event": "http", "method": method if method in {"GET", "POST", "DELETE"} else "other",
                       "protocol": protocol if re.fullmatch(r"\d{4}-\d{2}-\d{2}", protocol) else "other",
-                      "has_session_header": bool(has_session), "status": int(status),
+                      "has_session_header": bool(has_session), "has_bearer_token": bool(has_bearer),
+                      "status": int(status),
                       "elapsed_ms": round(max(0, elapsed) * 1000)})
+
+    def authorization(self, outcome: str):
+        allowed = {"accepted", "malformed", "unsupported_header", "unknown_key", "invalid_scope_claim",
+                   "invalid_identity_or_time", "expired", "not_yet_valid", "wrong_audience",
+                   "wrong_issuer", "invalid_signature", "missing_claim"}
+        self._append({"event": "authorization",
+                      "outcome": outcome if isinstance(outcome, str) and outcome in allowed else "other"})
 
     def listed(self, count: int):
         self._append({"event": "tools_listed", "count": int(count)})

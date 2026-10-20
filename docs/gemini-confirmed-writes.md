@@ -33,7 +33,11 @@ Operators may opt into `--transport-diagnostics-root`, a separate service-owned
 0700 directory outside source, configuration, canonical stores and approval
 stores. Its 0600 `transport-events.jsonl` is capped at 256 KiB and contains only
 fixed tool names, outcome categories, HTTP status, protocol date, presence of a
-session header and timings. It never records arguments, credentials, identities,
+session header or bearer token and timings. Private authorization categories
+distinguish expired tokens, wrong audiences, invalid signatures and other
+validation failures; they never include actual claims or appear in HTTP errors.
+These categories do not establish why a client lost its refresh-token chain.
+It never records arguments, credentials, identities,
 approval URLs or raw audit records. Diagnostics default to off and logging
 failure cannot authorize or block a write. Compare those events with actual
 client attempts before attributing a connection failure to Google or the NAS.
