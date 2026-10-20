@@ -13,6 +13,16 @@ It exposes `preview_knowledge_update` / `apply_knowledge_update` and
 instance-wide; Portfolio observations and Plans are restricted to granted IDs.
 None of these tools authorizes brokerage execution.
 
+HTTP declarations retain `const` and add explicit types and single-value enums
+for fixed literals: Knowledge uses `protocol_version="1.0-draft"` and
+`request_type="knowledge.commit"`; Portfolio observations use `request_version=1`.
+This keeps these values visible to clients that discard `const` during function
+declaration conversion. Canonical validation and independent approval are unchanged.
+If an older conversation reports `Transport for env PROD not found in configuration`,
+verify a read in a new chat with the actual connector selected. A server schema
+fix does not repair Google's conversation bindings. Synthetic tests, deployment,
+and actual Gemini preview/approval-link verification are separate results.
+
 Before the first preview, the operator must identify the separate NAS approval
 login account and provide its login details through a private handoff outside
 Git and chat. The account must match the server's `browser_username`; Google

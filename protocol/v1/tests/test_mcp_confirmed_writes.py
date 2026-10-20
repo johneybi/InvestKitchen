@@ -109,6 +109,30 @@ def _approve(client, preview):
     assert "아직 저장하지 않았습니다" in response.text
 
 
+@pytest.mark.parametrize("kind,field,expected", [("knowledge", "request_type", "knowledge.commit"),
+                                                ("knowledge", "protocol_version", "1.0-draft"),
+                                                ("portfolio", "request_version", 1)])
+def test_http_declared_literals_build_valid_preview_but_cannot_bypass_approval(setup, kind, field, expected):
+    client, headers, writes, _, _ = setup
+    name = "preview_" + kind + "_update"
+    tools = _post(client, "tools/list", headers=headers).json()["result"]["tools"]
+    schema = next(tool["inputSchema"] for tool in tools if tool["name"] == name)
+    declared = schema["properties"]["update"]["properties"][field]
+    assert declared["enum"] == [expected] and declared["type"] in {"string", "number", "integer"}
+    request = knowledge_request() if kind == "knowledge" else _narrow_request()
+    request[field] = declared["enum"][0]
+    preview = _call(client, headers, name, {"update": request})["structuredContent"]
+    assert preview["status"] == "review_required"
+    assert preview["approval_url"].startswith("https://mcp.example.test/approve/")
+    assert preview["approval_state"] == "awaiting_authenticated_browser_approval"
+    args = {key: preview[key] for key in ["preview_id", "confirmation"]}
+    assert _call(client, headers, "apply_" + kind + "_update", args)["isError"]
+    pending_count = len(writes.pending)
+    request[field] = "invalid-fixed-value"
+    assert _call(client, headers, name, {"update": request})["isError"]
+    assert len(writes.pending) == pending_count
+
+
 @pytest.mark.parametrize("kind", ["knowledge", "portfolio"])
 def test_signed_http_native_write_requires_human_review_and_reads_back(setup, kind):
     client, headers, writes, _, backends = setup

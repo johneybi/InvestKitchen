@@ -30,6 +30,7 @@ from starlette.routing import Route
 
 from protocol.v1.runtime.reference_composition import build_reference_gateway
 from protocol.v1.security.oauth_resource import JWTTokenVerifier, load_oauth_resource
+from protocol.v1.transport.client_schema import client_tool_schema
 from protocol.v1.transport.mcp_read_surface import ReadSurfaceError, RemoteReadSurface
 from protocol.v1.transport.mcp_confirmed_writes import (
     APPLY_TOOLS, WRITE_SCOPE, WRITE_TOOLS, ConfirmedWriteConfig, ConfirmedWriteSurface,
@@ -75,6 +76,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
         tools = surface.list_tools(token)
         if writes is not None:
             tools.extend(writes.list_tools(token))
+        tools = [{**tool, "inputSchema": client_tool_schema(tool["inputSchema"])} for tool in tools]
         return ListToolsResult(tools=[Tool.model_validate(tool) for tool in tools], ttlMs=0, cacheScope="private")
 
     async def call_tool(ctx, params):
