@@ -8,6 +8,7 @@ from typing import Any, Callable, Iterable, Mapping
 
 from protocol.v1.adapters.common import PROTOCOL_VERSION, digest, timepoint
 from protocol.v1.runtime.asset_identity import canonical_asset_identity
+from protocol.v1.runtime.holding_observations import HOLDING_VALUE_FIELDS, validate_holding_values
 from protocol.v1.runtime.native_write_store import NativeWriteStore
 from protocol.v1.runtime.portfolio_checkpoint import (
     CheckpointError,
@@ -229,10 +230,18 @@ def validate_account_snapshot(
             raise AccountSyncError("account_snapshot_asset_identity_duplicate")
         seen_assets.add(identity)
         quantity = _number(raw.get("quantity"), code="account_snapshot_quantity_invalid", nonnegative=True)
+        try:
+            values = validate_holding_values(
+                raw, currency=str(asset.get("currency") or ""),
+                observed_at=snapshot["snapshot_effective_at"], source_ref=source_ref,
+            )
+        except ValueError as exc:
+            raise AccountSyncError("account_snapshot_holding_values_invalid") from exc
         normalized_holdings.append({
             "asset": asset,
             "quantity": quantity,
             "source_evidence": _evidence(raw.get("source_evidence"), source_ref),
+            **values,
         })
 
     seen_cash: set[tuple[str, str]] = set()
@@ -410,6 +419,11 @@ def account_snapshot_to_observed_portfolio(
             row["source_evidence"] = _evidence(row.get("source_evidence"), source_ref)
             row["observed_at"] = observed_at
             row["state"] = "closed" if holding["quantity"] == 0 else "open"
+        for field in HOLDING_VALUE_FIELDS:
+            if field in holding:
+                row[field] = copy.deepcopy(holding[field])
+            elif current is not None and current.get("quantity") != holding["quantity"]:
+                row.pop(field, None)
         positions.append(row)
 
     current_cash: dict[tuple[str, str], list[dict[str, Any]]] = {}

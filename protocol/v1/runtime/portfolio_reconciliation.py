@@ -12,6 +12,7 @@ from protocol.v1.runtime.asset_identity import (
     public_asset_identity,
 )
 from protocol.v1.runtime.native_write_store import NativeWriteStore, StoreConflict, StoreCorrupt
+from protocol.v1.runtime.holding_observations import HOLDING_VALUE_FIELDS
 from protocol.v1.runtime.portfolio_checkpoint import (
     CheckpointError,
     PortfolioCheckpointStore,
@@ -195,9 +196,11 @@ def _merge_position_observation(current: dict[str, Any], observed: dict[str, Any
     for field in ("quantity", "quantity_status", "quantity_basis", "authority", "state"):
         if field in observed:
             row[field] = copy.deepcopy(observed[field])
-    for field in ("cost_basis_values", "avg_cost_values", "observed_at", "effective_at", "recorded_at"):
+    for field in (*HOLDING_VALUE_FIELDS, "observed_at", "effective_at", "recorded_at"):
         if field in observed:
             row[field] = copy.deepcopy(observed[field])
+        elif field in HOLDING_VALUE_FIELDS and current.get("quantity") != observed.get("quantity", current.get("quantity")):
+            row.pop(field, None)
     evidence = [str(value) for value in row.get("source_evidence") or [] if str(value)]
     for value in observed.get("source_evidence") or []:
         text = str(value)
@@ -487,7 +490,7 @@ def build_reconciliation_candidate(
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        ("quantity", "quantity_status", "quantity_basis", "cost_basis_values", "avg_cost_values", "authority", "state"),
+                        ("quantity", "quantity_status", "quantity_basis", *HOLDING_VALUE_FIELDS, "authority", "state"),
                     )
                     if changes:
                         differences.append(_difference("position", "changed", _position_identity_public(key), changes))
@@ -508,7 +511,7 @@ def build_reconciliation_candidate(
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        ("quantity", "quantity_status", "quantity_basis", "cost_basis_values", "avg_cost_values", "authority", "state"),
+                        ("quantity", "quantity_status", "quantity_basis", *HOLDING_VALUE_FIELDS, "authority", "state"),
                     )
                     if changes:
                         differences.append(_difference("position", "changed", _position_identity_public(key), changes))

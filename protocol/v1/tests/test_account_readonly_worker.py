@@ -33,6 +33,10 @@ def test_toss_worker_reads_only_account_list_and_holdings_and_marks_cash_unavail
                         "marketCountry": "KR",
                         "currency": "KRW",
                         "quantity": "4",
+                        "averagePurchasePrice": "1000",
+                        "lastPrice": "1100",
+                        "marketValue": {"purchaseAmount": "4000", "amount": "4400", "amountAfterCost": "4395"},
+                        "profitLoss": {"amount": "400", "amountAfterCost": "395", "rate": "0.1", "rateAfterCost": "0.09875"},
                     }],
                 }
             }, {"x-request-id": "request-synthetic"})
@@ -54,6 +58,10 @@ def test_toss_worker_reads_only_account_list_and_holdings_and_marks_cash_unavail
     ]
     assert result["holdings"][0]["asset"]["symbol"] == "005930"
     assert result["holdings"][0]["quantity"] == 4
+    assert result["holdings"][0]["avg_cost_values"][0]["amount"] == 1000
+    assert result["holdings"][0]["cost_basis_values"][0]["amount"] == 4000
+    assert result["holdings"][0]["valuation"]["market_value"] == 4400
+    assert result["holdings"][0]["valuation"]["profit_loss_rate"] == 0.1
     assert result["cash"] == []
     assert result["completeness"] == {"holdings": "complete", "cash": "unavailable"}
     assert result["source_ref"] == "provider-observation:toss:request-synthetic"

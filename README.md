@@ -13,6 +13,7 @@ It is not an auto-trading bot. The core idea is to keep facts, external opinions
 - **History** — durable Decision and Transaction read models
 - **Approval boundary** — preview → explicit approval → apply → read-back for bounded mutations
 - **Read-only market/account adapters** — provider-neutral runtime contracts with credentials kept outside Git
+- **Toss holding values** — average purchase price, purchase amount, market value and profit/loss through approved account synchronization; see [field meanings and rollout](docs/toss-holding-values.md).
 - **MCP transport** — ChatGPT/Codex-compatible stdio gateway and Secure MCP Tunnel deployment wiring
 - **Self-hosted deployment** — Synology-oriented Docker deployment templates
 
