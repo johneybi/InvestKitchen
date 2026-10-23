@@ -56,11 +56,43 @@ totals are outside this change.
 
 ## Release status and rollout
 
-Implemented in the issue #20 branch. Local protocol validation: **411 passed,
+### Verified deployment — 2026-10-23
+
+[PR #21](https://github.com/johneybi/InvestKitchen/pull/21) is reviewed and merged.
+Deployed product patch: `38619ad95e8ec617995ac4efa63889835c849920`.
+The exact patch was applied to fresh copies of the previously pinned GPT, Codex
+and Gemini product sources, preserving their operational compatibility changes.
+The original runtime source trees were not edited. Private source manifests
+identify the compatibility bases and every deployed source hash.
+
+NAS Python compatibility tests passed: GPT **78**, Codex **78**, Gemini **74**.
+The existing GPT catalog and schemas retained all 35 tools. Gemini HTTP
+configuration validation passed. A private operator drill verified successful
+activation and six backup/swap/health failures with restoration of original
+wrappers and service definitions.
+
+After private state backup and the operator-authenticated service cutover,
+independent checks confirmed the expected GPT and Gemini process sources,
+unchanged protected configuration, all pinned source hashes, active and enabled
+services, and a fresh Codex connection exposing its existing 32 tools. Existing
+routes, grants, credentials and account bindings were preserved.
+
+Actual connected production tools passed capability discovery, Portfolio scope
+discovery, market quotes and a live account-sync preview containing average cost,
+purchase amount, valuation and profit/loss. No real Portfolio apply was called.
+Persisting those observations still requires a fresh preview, explicit approval
+and apply. An actual Gemini app conversation was not repeated; its source,
+service, HTTP protection, configuration and synthetic compatibility were checked.
+Private deployment receipts, backups and raw account evidence remain outside Git.
+
+### Validation and future rollout
+
+Local protocol validation: **411 passed,
 8 optional private-legacy integration tests skipped**. Coverage includes synthetic
 KRW/USD holdings, zero values, signed losses, valuation-only changes, invalid
 observations, approval/tamper rejection, persisted read-back and trade replay.
-This is not a deployment or operational verification. Do not copy an unrelated development checkout to
+Local tests alone do not establish deployment or operational verification.
+Do not copy an unrelated development checkout to
 production: deploy a reviewed, identified product commit using the existing
 preflight/cutover/rollback process and the existing state/secret separation.
 
