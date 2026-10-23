@@ -163,6 +163,7 @@ def _narrow_observation(
             continue
         row = copy.deepcopy(matches[0])
         row["quantity"] = quantity
+        row.pop("valuation", None)
         row["quantity_status"] = "confirmed"
         row["quantity_basis"] = "user_confirmation"
         row["authority"] = "portfolio_fact"

@@ -407,6 +407,7 @@ def materialize_portfolio(
             position["source_evidence"] = _merge_evidence(
                 position.get("source_evidence") or [], [transaction_id]
             )
+            position.pop("valuation", None)
             position.pop("cost_basis_values", None)
             position.pop("avg_cost_values", None)
             changed_positions.add(position_index_value)

@@ -80,6 +80,7 @@
         "quantity_basis": {"enum": ["direct_observation", "execution_adjusted", "balance_reconciled", "carried_forward", "user_confirmation", "unknown"]},
         "cost_basis_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
         "avg_cost_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
+        "valuation": {"$ref": "#/$defs/positionValuation"},
         "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
         "effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
         "recorded_at": {"$ref": "common.schema.json#/$defs/timePoint"},
@@ -87,6 +88,31 @@
         "authority": {"enum": ["portfolio_fact", "estimated_portfolio_state", "unknown"]},
         "state": {"enum": ["open", "closed", "unknown"]}
       },
+      "additionalProperties": false
+    },
+    "positionValuation": {
+      "type": "object",
+      "description": "Provider-reported holding valuation at observed_at, in the trading currency. Rates are fractional ratios. This is a stored observation, not a live market quote or realized trading profit.",
+      "required": ["currency", "value_basis", "observed_at", "source_evidence"],
+      "properties": {
+        "currency": {"$ref": "common.schema.json#/$defs/currency"},
+        "value_basis": {"const": "observed"},
+        "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+        "source_evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "common.schema.json#/$defs/id"}},
+        "last_price": {"type": "number", "minimum": 0},
+        "market_value": {"type": "number", "minimum": 0},
+        "market_value_after_cost": {"type": "number"},
+        "profit_loss": {"type": "number"},
+        "profit_loss_after_cost": {"type": "number"},
+        "profit_loss_rate": {"type": "number", "description": "Fractional ratio: 0.1 means 10%."},
+        "profit_loss_rate_after_cost": {"type": "number"}
+      },
+      "anyOf": [
+        {"required": ["last_price"]}, {"required": ["market_value"]},
+        {"required": ["market_value_after_cost"]}, {"required": ["profit_loss"]},
+        {"required": ["profit_loss_after_cost"]}, {"required": ["profit_loss_rate"]},
+        {"required": ["profit_loss_rate_after_cost"]}
+      ],
       "additionalProperties": false
     },
     "cashObservation": {

@@ -154,7 +154,7 @@ def normalize_toss_account_snapshot(raw: Mapping[str, Any], binding: Mapping[str
     if any(not isinstance(row, Mapping) for row in cash_rows):
         raise AccountProviderError("toss_account_cash_invalid")
     metadata = {**raw, "result": result}
-    return _snapshot(
+    snapshot = _snapshot(
         metadata,
         binding,
         provider_id="toss_securities",
@@ -162,6 +162,54 @@ def normalize_toss_account_snapshot(raw: Mapping[str, Any], binding: Mapping[str
         position_rows=[dict(row) for row in items],
         cash_rows=[dict(row) for row in cash_rows],
     )
+    for holding, item in zip(snapshot["holdings"], items):
+        currency = holding["asset"]["currency"]
+
+        def amount(value: Any, *, nonnegative: bool = False) -> int | float:
+            return _number(value, code="toss_holding_value_invalid", nonnegative=nonnegative)
+
+        def money(value: Any) -> list[dict[str, Any]]:
+            return [{
+                "amount": amount(value, nonnegative=True),
+                "currency": currency,
+                "value_basis": "observed",
+                "as_of": copy.deepcopy(snapshot["snapshot_effective_at"]),
+                "source_evidence": [snapshot["source_ref"]],
+            }]
+
+        if "averagePurchasePrice" in item:
+            holding["avg_cost_values"] = money(item["averagePurchasePrice"])
+        valuation: dict[str, Any] = {}
+        if "lastPrice" in item:
+            valuation["last_price"] = amount(item["lastPrice"], nonnegative=True)
+        if "marketValue" in item:
+            market_value = item["marketValue"]
+            if not isinstance(market_value, Mapping):
+                raise AccountProviderError("toss_holding_value_invalid")
+            if "purchaseAmount" in market_value:
+                holding["cost_basis_values"] = money(market_value["purchaseAmount"])
+            for source, target in (("amount", "market_value"), ("amountAfterCost", "market_value_after_cost")):
+                if source in market_value:
+                    valuation[target] = amount(market_value[source], nonnegative=source == "amount")
+        if "profitLoss" in item:
+            profit_loss = item["profitLoss"]
+            if not isinstance(profit_loss, Mapping):
+                raise AccountProviderError("toss_holding_value_invalid")
+            for source, target in (
+                ("amount", "profit_loss"), ("amountAfterCost", "profit_loss_after_cost"),
+                ("rate", "profit_loss_rate"), ("rateAfterCost", "profit_loss_rate_after_cost"),
+            ):
+                if source in profit_loss:
+                    valuation[target] = amount(profit_loss[source])
+        if valuation:
+            holding["valuation"] = {
+                **valuation,
+                "currency": currency,
+                "value_basis": "observed",
+                "observed_at": copy.deepcopy(snapshot["snapshot_effective_at"]),
+                "source_evidence": [snapshot["source_ref"]],
+            }
+    return snapshot
 
 
 def normalize_namuh_account_snapshot(raw: Mapping[str, Any], binding: Mapping[str, Any]) -> dict[str, Any]:

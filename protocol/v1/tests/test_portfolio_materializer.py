@@ -161,6 +161,11 @@ def _basis() -> list[dict[str, str]]:
 
 def test_materializes_ordered_buys_and_sells_into_quantity_and_explicit_cash_basis() -> None:
     base = _base()
+    base["positions"][0]["valuation"] = {
+        "currency": "KRW", "value_basis": "observed", "market_value": 1000,
+        "profit_loss": 0, "observed_at": _tp("2026-09-16T08:00:00Z"),
+        "source_evidence": ["provider-observation:synthetic"],
+    }
     transactions = [
         _trade("transaction:sell", side="sell", quantity=3, amount=450, effective_at="2026-09-16T10:00:00Z"),
         _trade("transaction:buy", side="buy", quantity=2, amount=200, effective_at="2026-09-16T09:00:00Z"),
@@ -181,6 +186,7 @@ def test_materializes_ordered_buys_and_sells_into_quantity_and_explicit_cash_bas
     assert position["authority"] == "estimated_portfolio_state"
     assert "cost_basis_values" not in position
     assert "avg_cost_values" not in position
+    assert "valuation" not in position
     assert result["portfolio"]["cash"][0]["value"]["amount"] == 10250
     assert result["portfolio"]["cash"][0]["value"]["value_basis"] == "derived"
     assert result["status"] == "partial"
