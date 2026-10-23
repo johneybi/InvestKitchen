@@ -25,6 +25,10 @@ from protocol.v1.runtime.portfolio_checkpoint import (
 
 
 AcceptanceVerifier = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
+POSITION_REVIEW_FIELDS = (
+    "quantity", "quantity_status", "quantity_basis", *HOLDING_VALUE_FIELDS, "authority", "state",
+)
+CASH_REVIEW_FIELDS = ("currency", "cash_kind", "provider_label", "value", "authority")
 
 
 class ReconciliationError(RuntimeError):
@@ -483,14 +487,17 @@ def build_reconciliation_candidate(
             for key, observed_row in observed_for_account.items():
                 current_row = current_for_account.get(key)
                 if current_row is None:
-                    differences.append(_difference("position", "added", _position_identity_public(key)))
+                    differences.append(_difference(
+                        "position", "added", _position_identity_public(key),
+                        _field_changes({}, observed_row, (*POSITION_REVIEW_FIELDS, "observed_at")),
+                    ))
                 else:
                     if asset_identity_conflict(current_row.get("asset"), observed_row.get("asset")):
                         raise ReconciliationError("reconciliation_position_identity_conflict")
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        ("quantity", "quantity_status", "quantity_basis", *HOLDING_VALUE_FIELDS, "authority", "state"),
+                        POSITION_REVIEW_FIELDS,
                     )
                     if changes:
                         differences.append(_difference("position", "changed", _position_identity_public(key), changes))
@@ -504,14 +511,17 @@ def build_reconciliation_candidate(
             for key, observed_row in observed_for_account.items():
                 current_row = current_for_account.get(key)
                 if current_row is None:
-                    differences.append(_difference("position", "added", _position_identity_public(key)))
+                    differences.append(_difference(
+                        "position", "added", _position_identity_public(key),
+                        _field_changes({}, observed_row, (*POSITION_REVIEW_FIELDS, "observed_at")),
+                    ))
                 else:
                     if asset_identity_conflict(current_row.get("asset"), observed_row.get("asset")):
                         raise ReconciliationError("reconciliation_position_identity_conflict")
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        ("quantity", "quantity_status", "quantity_basis", *HOLDING_VALUE_FIELDS, "authority", "state"),
+                        POSITION_REVIEW_FIELDS,
                     )
                     if changes:
                         differences.append(_difference("position", "changed", _position_identity_public(key), changes))
@@ -559,12 +569,15 @@ def build_reconciliation_candidate(
             for cash_id, observed_row in observed_for_account.items():
                 current_row = current_for_account.get(cash_id)
                 if current_row is None:
-                    differences.append(_difference("cash", "added", {"cash_id": cash_id, "account_id": account_id}))
+                    differences.append(_difference(
+                        "cash", "added", {"cash_id": cash_id, "account_id": account_id},
+                        _field_changes({}, observed_row, (*CASH_REVIEW_FIELDS, "observed_at")),
+                    ))
                 else:
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        ("currency", "cash_kind", "provider_label", "value", "authority"),
+                        CASH_REVIEW_FIELDS,
                     )
                     if changes:
                         differences.append(_difference("cash", "changed", {"cash_id": cash_id, "account_id": account_id}, changes))
@@ -578,12 +591,15 @@ def build_reconciliation_candidate(
             for cash_id, observed_row in observed_for_account.items():
                 current_row = current_for_account.get(cash_id)
                 if current_row is None:
-                    differences.append(_difference("cash", "added", {"cash_id": cash_id, "account_id": account_id}))
+                    differences.append(_difference(
+                        "cash", "added", {"cash_id": cash_id, "account_id": account_id},
+                        _field_changes({}, observed_row, (*CASH_REVIEW_FIELDS, "observed_at")),
+                    ))
                 else:
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        ("currency", "cash_kind", "provider_label", "value", "authority"),
+                        CASH_REVIEW_FIELDS,
                     )
                     if changes:
                         differences.append(_difference("cash", "changed", {"cash_id": cash_id, "account_id": account_id}, changes))

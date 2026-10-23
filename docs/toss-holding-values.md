@@ -38,6 +38,14 @@ totals are outside this change.
 
 ## Validation and refresh
 
+- New holding `differences` entries with `change_type: added` expose quantity,
+  available average cost, purchase amount and valuation in `field_changes`, with
+  `current: null` for previously
+  absent fields and the provider-observed values in `observed`. New cash previews
+  likewise include currency, cash kind, amount and observation time. Both complete
+  and partial reconciliation paths use the same bounded field allowlists. A
+  missing cost or valuation stays absent; applying unrelated account changes is
+  never required just to inspect a new holding's reported values.
 - Unchanged quantities still produce a reviewable candidate when valuation or
   cost observations change. New observation times and provenance are retained.
 - Valid zero values and signed losses/rates are retained. Non-finite values,

@@ -9,9 +9,10 @@ from protocol.v1.adapters.materialized_portfolio import get_materialized_portfol
 from protocol.v1.providers.account_readonly_adapters import AccountProviderError, normalize_toss_account_snapshot
 from protocol.v1.runtime.portfolio_account_sync import (
     AccountBindingRegistry, AccountSyncError, accept_account_sync,
-    build_account_sync_preview, validate_account_snapshot,
+    account_snapshot_to_observed_portfolio, build_account_sync_preview, validate_account_snapshot,
 )
-from protocol.v1.runtime.portfolio_update_service import build_portfolio_update_preview, new_approval
+from protocol.v1.runtime.portfolio_update_service import build_portfolio_update_preview, new_approval, portfolio_update_review
+from protocol.v1.runtime.portfolio_reconciliation import build_reconciliation_candidate
 from protocol.v1.runtime.native_write_store import NativeWriteStore
 from protocol.v1.runtime.portfolio_checkpoint import PortfolioCheckpointStore
 from protocol.v1.tests.test_gateway_facade import _validate
@@ -91,6 +92,12 @@ def test_toss_values_round_trip_preview_approval_checkpoint_and_public_read(tmp_
     preview = _preview(stores, snapshot)
     assert stores[1].read_all() == before
     assert preview["status"] == "review_required"
+    added = next(row for row in preview["review"]["differences"] if row["identity"].get("symbol") == "AAPL")
+    assert added["change_type"] == "added"
+    details = {row["field"]: row["observed"] for row in added["field_changes"]}
+    assert details["quantity"] == 0.25
+    assert details["avg_cost_values"][0]["amount"] == 80.12
+    assert details["cost_basis_values"][0]["amount"] == 20.03
     _validate(preview["candidate"]["reconciled_portfolio"], "portfolio.schema.json")
     _validate(preview["candidate"], "portfolio-reconciliation.schema.json")
     assert _apply(stores, preview)["read_back"]["matches"] is True
@@ -249,4 +256,60 @@ def test_value_updates_require_trusted_approval_and_untampered_candidate(tmp_pat
         verifier = lambda *_: {"verified": True, "verification_ref": "verify:must-not-authorize-tamper"}
     with pytest.raises(AccountSyncError):
         accept_account_sync(preview, approval, checkpoint_store=stores[1], write_store=stores[0], approval_verifier=verifier)
+    assert stores[1].read_all() == before
+
+
+@pytest.mark.parametrize("completeness", ["complete", "partial"])
+@pytest.mark.parametrize("with_values", [True, False])
+def test_added_holding_and_cash_have_bounded_reviewable_values_without_apply(tmp_path, completeness, with_values) -> None:
+    stores = _stores(tmp_path)
+    checkpoint = stores[1].latest("portfolio-alpha")
+    current = checkpoint["base_portfolio"]
+    raw = _raw()
+    item = raw["result"]["items"][-1]
+    item["private_provider_metadata"] = "synthetic-secret-sentinel"
+    if not with_values:
+        for field in ("averagePurchasePrice", "lastPrice", "marketValue", "profitLoss"):
+            item.pop(field)
+    snapshot = normalize_toss_account_snapshot(raw, _binding())
+    binding = AccountBindingRegistry([_binding()]).resolve("portfolio-alpha", "account-alpha")
+    snapshot = validate_account_snapshot(snapshot, binding, now=NOW)
+    observed = account_snapshot_to_observed_portfolio(snapshot, current)
+    observed["cash"].append({
+        "cash_id": "cash:synthetic-usd", "portfolio_id": "portfolio-alpha", "account_id": "account-alpha",
+        "currency": "USD", "cash_kind": "nominal_balance", "value": {"amount": 0, "currency": "USD", "value_basis": "observed"},
+        "authority": "portfolio_fact", "observed_at": snapshot["snapshot_effective_at"], "source_evidence": [snapshot["source_ref"]],
+    })
+    account = observed["completeness"]["accounts"][0]
+    account["holdings"] = account["cash"] = completeness
+    before = copy.deepcopy(stores[1].read_all())
+    candidate = build_reconciliation_candidate(
+        current, observed, stores[0], snapshot_effective_at=snapshot["snapshot_effective_at"],
+        source_ref=snapshot["source_ref"], cash_basis_refs=checkpoint["cash_basis_refs"],
+        created_at=_tp("2026-09-17T01:02:00Z"),
+    )
+    _validate(candidate, "portfolio-reconciliation.schema.json")
+    review = portfolio_update_review(candidate)
+    added = next(row for row in review["differences"] if row["identity"].get("symbol") == "AAPL")
+    assert added["change_type"] == "added" and added["identity"]["currency"] == "USD"
+    assert all(row["current"] is None for row in added["field_changes"])
+    details = {row["field"]: row["observed"] for row in added["field_changes"]}
+    assert details["quantity"] == 0.25
+    assert details["observed_at"] == snapshot["snapshot_effective_at"]
+    if with_values:
+        assert details["avg_cost_values"][0]["amount"] == 80.12
+        assert details["cost_basis_values"][0]["amount"] == 20.03
+        assert details["valuation"]["market_value"] == 20.03
+        assert details["valuation"]["profit_loss"] == 0
+    else:
+        assert not (set(details) & {"avg_cost_values", "cost_basis_values", "valuation"})
+    cash = next(row for row in review["differences"] if row["identity"].get("cash_id") == "cash:synthetic-usd")
+    cash_values = {row["field"]: row["observed"] for row in cash["field_changes"]}
+    assert cash_values["currency"] == "USD" and cash_values["value"]["amount"] == 0
+    assert cash_values["observed_at"] == snapshot["snapshot_effective_at"]
+    assert "synthetic-secret-sentinel" not in repr(review)
+    assert "reconciled_portfolio" not in review and "checkpoint_draft" not in review
+    added["field_changes"][0]["observed"] = -999
+    candidate_added = next(row for row in candidate["differences"] if row["identity"].get("symbol") == "AAPL")
+    assert candidate_added["field_changes"][0]["observed"] == 0.25
     assert stores[1].read_all() == before
