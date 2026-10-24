@@ -68,10 +68,28 @@ class NoStoreMiddleware:
                     request_headers = dict(scope.get("headers", []))
                     self.diagnostics.http(scope.get("method", ""),
                         request_headers.get(b"mcp-protocol-version", b"").decode("ascii", errors="replace"),
-                        b"mcp-session-id" in request_headers, message["status"], time.monotonic() - started)
+                        b"mcp-session-id" in request_headers, message["status"], time.monotonic() - started,
+                        has_bearer=request_headers.get(b"authorization", b"").lower().startswith(b"bearer "))
             await send(message)
 
         await self.app(scope, receive, no_cache)
+
+
+class DiagnosticTokenVerifier:
+    """Observe the same validation result without exposing it to the client."""
+
+    def __init__(self, verifier: JWTTokenVerifier, diagnostics: TransportDiagnostics):
+        self.verifier = verifier
+        self.diagnostics = diagnostics
+
+    async def verify_token(self, token: str):
+        access, outcome = self.verifier.verification_result(token)
+        try:
+            self.diagnostics.authorization(outcome)
+        except Exception:
+            # Optional observation must not change an authentication result.
+            pass
+        return access
 
 
 def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWriteSurface | None = None,
@@ -156,7 +174,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             resource_server_url=AnyHttpUrl(verifier.config.resource_url),
             required_scopes=list(verifier.config.required_scopes), validate_token_resource=True,
         ),
-        token_verifier=verifier,
+        token_verifier=DiagnosticTokenVerifier(verifier, diagnostics) if diagnostics is not None else verifier,
         transport_security=TransportSecuritySettings(
             allowed_hosts=[resource.netloc], allowed_origins=[origin],
         ),
