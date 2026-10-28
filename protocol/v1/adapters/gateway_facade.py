@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import hashlib
 import re
 from pathlib import Path
 from typing import Any, Callable
 
 from .capability_registry import get_capabilities, load_instance_manifest
-from .common import PROTOCOL_VERSION, hide_local_locators, timepoint
+from .common import PROTOCOL_VERSION, public_reference, timepoint
 from .context_composer import compose_decision_context
 from .knowledge_legacy import get_current_knowledge, search_knowledge
 from .portfolio_legacy import get_portfolio_state
@@ -29,26 +28,8 @@ _FORBIDDEN_PUBLIC_KEYS = {
 }
 
 
-_COMPAT_ID_PREFIXES = {
-    "legacy-position:": "position-ref:",
-    "legacy-cash:": "cash-ref:",
-    "legacy-policy:": "policy-ref:",
-    "legacy-evidence:": "evidence-ref:",
-    "legacy-object-ref:": "object-ref:",
-}
-
-
 def _public_scalar(value: str) -> str:
-    if value == "legacy_user_policy_record":
-        return "user_policy_record"
-    if value.startswith("legacy:") and ("/" in value or "\\" in value):
-        suffix = hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
-        return f"evidence-ref:{suffix}"
-    for internal_prefix, public_prefix in _COMPAT_ID_PREFIXES.items():
-        if value.startswith(internal_prefix):
-            suffix = hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
-            return f"{public_prefix}{suffix}"
-    return hide_local_locators(value)
+    return public_reference(value)
 
 
 def _public_message(value: Any) -> str:

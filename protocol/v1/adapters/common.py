@@ -18,6 +18,22 @@ def digest(value: Any) -> str:
     return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
 
 
+def public_reference(value: str) -> str:
+    """One mapping for public reads and scoped write-selector resolution."""
+    if value == "legacy_user_policy_record":
+        return "user_policy_record"
+    if value.startswith("legacy:") and ("/" in value or "\\" in value):
+        return "evidence-ref:" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
+    for internal, public in (
+        ("legacy-position:", "position-ref:"), ("legacy-cash:", "cash-ref:"),
+        ("legacy-policy:", "policy-ref:"), ("legacy-evidence:", "evidence-ref:"),
+        ("legacy-object-ref:", "object-ref:"),
+    ):
+        if value.startswith(internal):
+            return public + hashlib.sha256(value.encode("utf-8")).hexdigest()[:24]
+    return hide_local_locators(value)
+
+
 def timepoint(value: str | None = None, *, precision: str = "source_exact") -> dict[str, str]:
     if value is None:
         value = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
