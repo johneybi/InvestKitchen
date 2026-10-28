@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://trademind.local/protocol/v1/account-state.schema.json",
+  "title": "InvestKitchen live account observation (read only)",
+  "type": "object",
+  "required": ["portfolio_id", "account_id", "provider_id", "snapshot_effective_at", "retrieved_at", "holdings", "cash", "completeness", "observation_ref", "canonical_state_updated", "approval_required"],
+  "properties": {
+    "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
+    "account_id": {"$ref": "common.schema.json#/$defs/id"},
+    "provider_id": {"$ref": "common.schema.json#/$defs/id"},
+    "snapshot_effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "retrieved_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+    "holdings": {
+      "type": "array", "maxItems": 1000,
+      "items": {
+        "type": "object", "required": ["asset", "quantity", "source_evidence"],
+        "properties": {
+          "asset": {"$ref": "portfolio.schema.json#/$defs/assetRef"},
+          "quantity": {"type": "number", "minimum": 0},
+          "cost_basis_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
+          "avg_cost_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
+          "valuation": {"$ref": "portfolio.schema.json#/$defs/positionValuation"},
+          "source_evidence": {"type": "array", "maxItems": 1, "items": {"$ref": "common.schema.json#/$defs/id"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "cash": {
+      "type": "array", "maxItems": 50,
+      "items": {
+        "type": "object", "required": ["currency", "cash_kind", "amount", "source_evidence"],
+        "properties": {
+          "currency": {"$ref": "common.schema.json#/$defs/currency"},
+          "cash_kind": {"enum": ["nominal_balance", "settled_cash", "buying_power", "withdrawable_cash", "displayed_settlement", "provider_specific", "unknown"]},
+          "amount": {"type": "number"},
+          "provider_label": {"type": ["string", "null"]},
+          "source_evidence": {"type": "array", "maxItems": 1, "items": {"$ref": "common.schema.json#/$defs/id"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "completeness": {
+      "type": "object", "required": ["holdings", "cash"],
+      "properties": {
+        "holdings": {"enum": ["complete", "partial", "unavailable", "stale"]},
+        "cash": {"enum": ["complete", "partial", "unavailable", "stale"]}
+      },
+      "additionalProperties": false
+    },
+    "observation_ref": {"type": "string", "pattern": "^account-observation:[0-9a-f]{24}$"},
+    "canonical_state_updated": {"const": false},
+    "approval_required": {"const": false}
+  },
+  "additionalProperties": false
+}

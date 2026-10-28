@@ -1,0 +1,11 @@
+[Unit]
+Description=InvestKitchen low-frequency broker observations
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=15
+Unit=account-observations.service
+
+[Install]
+WantedBy=timers.target

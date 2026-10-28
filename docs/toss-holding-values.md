@@ -7,6 +7,12 @@ observations in the existing account synchronization flow:
 
 `read → validate → reconciliation preview → explicit approval → checkpoint → read-back`
 
+For current values without checkpoint reconciliation, use the new
+[`get_account_state` read path](account-observations.md). It automatically
+refreshes a short cache without a preview approval deadline. Optional account
+consent also enables durable latest observations and automatic reflection in the
+current Portfolio view; canonical checkpoint writes retain the flow above.
+
 ## Fields
 
 Each holding keeps its trading currency. KRW and USD amounts are never combined or

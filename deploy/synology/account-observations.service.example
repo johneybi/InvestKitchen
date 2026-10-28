@@ -1,0 +1,16 @@
+[Unit]
+Description=InvestKitchen approved broker observation refresh
+After=network-online.target
+
+[Service]
+Type=oneshot
+# Copy outside Git and fill the already approved runtime/configuration paths.
+# Run as the account owning the private observation directory and credential files.
+User=REPLACE_OPERATOR
+UMask=0077
+NoNewPrivileges=true
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=REPLACE_PYTHON REPLACE_PRODUCT_ROOT/protocol/v1/deployment/account_observation_cli.py tick --runtime-root REPLACE_PRODUCT_ROOT --account-binding-file REPLACE_BINDING_FILE --observation-root REPLACE_OBSERVATION_ROOT --policy-file REPLACE_APPROVED_POLICY --key-file REPLACE_POLICY_KEY --toss-account-secret-file REPLACE_TOSS_SECRET
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal

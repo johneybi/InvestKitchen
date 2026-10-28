@@ -53,6 +53,8 @@ from protocol.v1.runtime.portfolio_account_sync import (
     accept_account_sync,
     build_account_sync_preview,
 )
+from protocol.v1.runtime.account_state import AccountStateReader
+from protocol.v1.runtime.account_observations import ApprovedObservationStore, CurrentAccountService, overlay_current_accounts
 from protocol.v1.runtime.opinion_weighting import (
     OpinionWeightingStore,
     apply_weighting_update,
@@ -809,6 +811,10 @@ def build_reference_gateway(
     account_snapshot_providers: Mapping[str, AccountSnapshotReader] | None = None,
     account_provider_secret_files: Mapping[str, Path] | None = None,
     account_sync_max_age_seconds: int = 300,
+    account_cache_ttl_seconds: int = 30,
+    account_observation_root: Path | None = None,
+    account_observation_policy_file: Path | None = None,
+    account_observation_key_file: Path | None = None,
 ) -> ReadOnlyGatewayFacade:
     if read_only_stores and (write_principal is not None or write_grant is not None):
         raise ValueError("Read-only stores cannot receive write authority")
@@ -830,6 +836,7 @@ def build_reference_gateway(
         raise ValueError("unsupported market provider binding")
 
     configured_account_providers: dict[str, AccountSnapshotReader] = dict(account_snapshot_providers or {})
+    account_bindings = list(account_bindings) if account_bindings is not None else None
     for provider_id, secret_file in (account_provider_secret_files or {}).items():
         if provider_id in configured_account_providers:
             raise ValueError("account provider configured more than once")
@@ -1057,6 +1064,41 @@ def build_reference_gateway(
         if set(plan_portfolio_stores) & set(configured_portfolio_ids):
             raise ValueError("Plan verification namespace conflicts with a personal Portfolio")
         configured_portfolio_ids.extend(plan_portfolio_stores)
+    account_reader = None
+    if account_bindings is not None and configured_account_providers:
+        account_reader = AccountStateReader(
+            AccountBindingRegistry(account_bindings), configured_account_providers,
+            portfolio_ids=configured_portfolio_ids, cache_ttl_seconds=account_cache_ttl_seconds,
+            max_age_seconds=account_sync_max_age_seconds,
+            max_stale_seconds=max(900, account_sync_max_age_seconds),
+        )
+    account_read = account_reader.read if account_reader is not None else None
+    observation_options = (account_observation_root, account_observation_policy_file, account_observation_key_file)
+    if any(value is not None for value in observation_options):
+        if account_reader is None or any(value is None for value in observation_options):
+            raise ValueError("Automatic observations require a reader, private data root, approved policy and signing key")
+        protected = [runtime_root]
+        protected.extend(path.resolve() for path in (
+            personal_data_root, native_store_root, portfolio_checkpoint_root, approval_store_root, advisory_state_root,
+        ) if path is not None)
+        root = account_observation_root.resolve()
+        if any(root == path or root.is_relative_to(path) or path.is_relative_to(root) for path in protected):
+            raise ValueError("Broker observation data must be separate from product and canonical stores")
+        if any(config.resolve() == path or config.resolve().is_relative_to(path)
+               for config in (account_observation_policy_file, account_observation_key_file) for path in protected):
+            raise ValueError("Broker observation consent and signing key must be outside product and canonical stores")
+        observation_store = ApprovedObservationStore(account_observation_root, account_observation_policy_file, account_observation_key_file)
+        for row in observation_store.scopes():
+            if row["portfolio_id"] not in configured_portfolio_ids:
+                raise ValueError("Automatic observation portfolio scope is not configured")
+            observation_store.authorize(account_reader.registry.resolve(row["portfolio_id"], row["account_id"]))
+        service = CurrentAccountService(account_reader, observation_store)
+        account_read = service.read
+        if "portfolio.state" in handlers:
+            original_portfolio_read = handlers["portfolio.state"]
+            handlers["portfolio.state"] = lambda payload: overlay_current_accounts(
+                original_portfolio_read(payload), service, str(payload["portfolio_id"]),
+            )
     return ReadOnlyGatewayFacade(
         workspace=legacy_workspace or runtime_root,
         manifest=manifest.resolve(),
@@ -1067,4 +1109,5 @@ def build_reference_gateway(
         portfolio_ids=configured_portfolio_ids,
         plan_history_reader=(lambda **kwargs: get_plan_history(plan_store_for(kwargs["portfolio_id"]), **kwargs)) if advisory_plans is not None else None,
         plan_store=advisory_plans,
+        account_state_reader=account_read,
     )

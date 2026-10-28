@@ -104,6 +104,7 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
         "get_capabilities",
         "list_portfolios",
         "get_portfolio_state",
+        "get_account_state",
         "get_open_items",
         "get_current_policy",
         "get_opinion_weighting",

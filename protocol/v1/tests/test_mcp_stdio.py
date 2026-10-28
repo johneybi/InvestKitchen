@@ -136,7 +136,8 @@ def test_mcp_tools_list_is_deterministic_read_only_and_runtime_filtered() -> Non
     quote = next(tool for tool in tools if tool["name"] == "get_market_quote")
     portfolio = next(tool for tool in tools if tool["name"] == "get_portfolio_state")
     assert quote["annotations"]["openWorldHint"] is True
-    assert portfolio["annotations"]["openWorldHint"] is False
+    # Consented automatic observations may refresh a linked broker during this read.
+    assert portfolio["annotations"]["openWorldHint"] is True
     assert response["result"]["ttlMs"] == 0
     assert response["result"]["cacheScope"] == "private"
 

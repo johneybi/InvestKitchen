@@ -48,6 +48,7 @@ def _tool_map(catalog: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 _CAPABILITY_PERMISSION = {
     "portfolio.state": "portfolio.read",
+    "account.state": "portfolio.read",
     "knowledge.current": "knowledge.read",
     "knowledge.search": "knowledge.read",
     "market.quote": "market.read",
@@ -64,7 +65,9 @@ def required_permissions(tool_name: str, arguments: dict[str, Any], catalog: dic
     permissions = set(str(value) for value in tool.get("required_permissions", []))
     if tool_name == "build_decision_context":
         request = arguments.get("request") if isinstance(arguments.get("request"), dict) else {}
-        for capability in request.get("requested_context") or []:
+        inputs = arguments.get("capability_inputs") if isinstance(arguments.get("capability_inputs"), dict) else {}
+        requested = set(request.get("requested_context") or []) | set(inputs) | set(arguments.get("required_capabilities") or [])
+        for capability in requested:
             permission = _CAPABILITY_PERMISSION.get(str(capability))
             if permission:
                 permissions.add(permission)
@@ -73,7 +76,7 @@ def required_permissions(tool_name: str, arguments: dict[str, Any], catalog: dic
 
 def portfolio_ids_for_request(tool_name: str, arguments: dict[str, Any]) -> list[str]:
     values: set[str] = set()
-    if tool_name in {"get_portfolio_state", "get_decision_history", "get_transactions", "get_active_plans", "get_plan_history"}:
+    if tool_name in {"get_portfolio_state", "get_account_state", "get_decision_history", "get_transactions", "get_active_plans", "get_plan_history"}:
         portfolio_id = arguments.get("portfolio_id")
         if portfolio_id:
             values.add(str(portfolio_id))
@@ -82,9 +85,10 @@ def portfolio_ids_for_request(tool_name: str, arguments: dict[str, Any]) -> list
         if request.get("portfolio_id"):
             values.add(str(request["portfolio_id"]))
         inputs = arguments.get("capability_inputs") if isinstance(arguments.get("capability_inputs"), dict) else {}
-        portfolio_input = inputs.get("portfolio.state") if isinstance(inputs.get("portfolio.state"), dict) else {}
-        if portfolio_input.get("portfolio_id"):
-            values.add(str(portfolio_input["portfolio_id"]))
+        for capability in ("portfolio.state", "account.state"):
+            portfolio_input = inputs.get(capability) if isinstance(inputs.get(capability), dict) else {}
+            if portfolio_input.get("portfolio_id"):
+                values.add(str(portfolio_input["portfolio_id"]))
     elif tool_name in {"preview_portfolio_update", "preview_plan_update"}:
         update = arguments.get("update") if isinstance(arguments.get("update"), dict) else {}
         if update.get("portfolio_id"):

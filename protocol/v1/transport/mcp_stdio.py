@@ -49,6 +49,7 @@ _TOOL_CAPABILITY = {
     "get_capabilities": None,
     "list_portfolios": None,
     "get_portfolio_state": "portfolio.state",
+    "get_account_state": "account.state",
     "get_open_items": "openitem.current",
     "get_current_policy": "policy.current",
     "get_opinion_weighting": "opinion.weighting.current",
@@ -221,6 +222,8 @@ class TradeMindMCPServer:
             "supportedVersions": [MCP_PROTOCOL_VERSION],
             "capabilities": {"tools": {"listChanged": False}},
             "instructions": (
+                "For current broker holdings, costs and valuation, use get_account_state when available: "
+                "it refreshes automatically and needs no sync approval. "
                 "InvestKitchen exposes investment context plus explicitly confirmed native Knowledge "
                 "and Portfolio observation updates. Treat preview confirmation, freshness, authority, "
                 "and portfolio scope as binding."
@@ -358,6 +361,10 @@ def main() -> int:
     parser.add_argument("--toss-account-secret-file", type=Path)
     parser.add_argument("--nhplug-account-secret-file", type=Path)
     parser.add_argument("--account-sync-max-age-seconds", type=int, default=300)
+    parser.add_argument("--account-cache-ttl-seconds", type=int, default=30)
+    parser.add_argument("--account-observation-root", type=Path)
+    parser.add_argument("--account-observation-policy-file", type=Path)
+    parser.add_argument("--account-observation-key-file", type=Path)
     parser.add_argument("--native-store-root", type=Path)
     parser.add_argument("--advisory-state-root", type=Path)
     parser.add_argument("--plan-verification-root", type=Path)
@@ -412,6 +419,10 @@ def main() -> int:
             account_bindings=account_bindings,
             account_provider_secret_files=account_provider_secret_files,
             account_sync_max_age_seconds=args.account_sync_max_age_seconds,
+            account_cache_ttl_seconds=args.account_cache_ttl_seconds,
+            account_observation_root=args.account_observation_root,
+            account_observation_policy_file=args.account_observation_policy_file,
+            account_observation_key_file=args.account_observation_key_file,
         )
     except (OSError, ValueError):
         sys.stderr.write("TradeMind MCP configuration error\n")
