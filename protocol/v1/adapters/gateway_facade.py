@@ -172,6 +172,7 @@ class ReadOnlyGatewayFacade:
         portfolio_ids: list[str] | None = None,
         plan_history_reader: Callable[..., dict[str, Any]] | None = None,
         plan_store: Any = None,
+        account_state_reader: Callable[..., dict[str, Any]] | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.manifest = load_instance_manifest(manifest) if isinstance(manifest, Path) else manifest
@@ -181,14 +182,18 @@ class ReadOnlyGatewayFacade:
         self.connector_discard = connector_discard
         self.plan_history_reader = plan_history_reader
         self.plan_store = plan_store
+        self.account_state_reader = account_state_reader
         self.portfolio_ids = sorted({str(value) for value in (portfolio_ids or []) if str(value)})
 
     def _capability_row(self, capability: str) -> dict[str, Any] | None:
         registry = get_capabilities(self.manifest)
-        return next(
-            (row for row in registry["capabilities"] if row["capability"] == capability),
-            None,
-        )
+        configured = next((row for row in registry["capabilities"] if row["capability"] == capability), None)
+        if capability == "account.state" and self.account_state_reader is not None:
+            if configured is not None:
+                return configured
+            return {"capability": capability, "installed": True, "ready": True,
+                    "client_exposure": "supported", "client_usable": True, "reason": None}
+        return configured
 
     def _unavailable_result(self, capability: str, *, status: str, gap_code: str, reason: str) -> dict[str, Any]:
         return {
@@ -226,6 +231,8 @@ class ReadOnlyGatewayFacade:
                 reason=str((row or {}).get("reason") or "not_exposed_or_not_ready"),
             )
         handler = self.handlers.get(capability)
+        if capability == "account.state" and self.account_state_reader is not None:
+            handler = lambda values: self.account_state_reader(**values)
         if handler is None:
             return self._unavailable_result(
                 capability,
@@ -263,7 +270,8 @@ class ReadOnlyGatewayFacade:
         rows = []
         for row in projected["capabilities"]:
             capability = str(row["capability"])
-            runtime_handler_ready = capability == "decision.context" or capability in self.handlers
+            runtime_handler_ready = (capability == "decision.context" or capability in self.handlers
+                                     or (capability == "account.state" and self.account_state_reader is not None))
             runtime_ready = bool(row["ready"] and runtime_handler_ready)
             client_usable = bool(runtime_ready and row["client_exposure"] == "supported")
             reason = row["reason"]
@@ -277,6 +285,8 @@ class ReadOnlyGatewayFacade:
                 "client_usable": client_usable,
                 "reason": reason,
             })
+        if self.account_state_reader is not None and not any(row["capability"] == "account.state" for row in rows):
+            rows.append(self._capability_row("account.state"))
         return {
             "protocol_version": PROTOCOL_VERSION,
             "instance_id": projected.get("instance_id"),
@@ -286,6 +296,9 @@ class ReadOnlyGatewayFacade:
 
     def get_portfolio_state(self, portfolio_id: str) -> dict[str, Any]:
         return self._invoke("portfolio.state", {"portfolio_id": portfolio_id})
+
+    def get_account_state(self, portfolio_id: str, account_id: str, *, refresh: bool = False) -> dict[str, Any]:
+        return self._invoke("account.state", {"portfolio_id": portfolio_id, "account_id": account_id, "refresh": refresh})
 
     def list_portfolios(self) -> dict[str, Any]:
         return {
@@ -438,7 +451,7 @@ class ReadOnlyGatewayFacade:
         ))
         scoped_capabilities = {
             "portfolio.state", "decision.history", "transaction.history",
-            "openitem.current", "policy.current", "plan.active",
+            "openitem.current", "policy.current", "plan.active", "account.state",
         }
         default_portfolio_id = request.get("portfolio_id")
         normalized_inputs: dict[str, dict[str, Any]] = {}

@@ -13,7 +13,8 @@ It is not an auto-trading bot. The core idea is to keep facts, external opinions
 - **History** — durable Decision and Transaction read models
 - **Approval boundary** — preview → explicit approval → apply → read-back for bounded mutations
 - **Read-only market/account adapters** — provider-neutral runtime contracts with credentials kept outside Git
-- **Toss holding values** — average purchase price, purchase amount, market value and profit/loss through approved account synchronization; see [field meanings and rollout](docs/toss-holding-values.md).
+- **Toss holding values** — average purchase price, purchase amount, market value and profit/loss; see [field meanings and rollout](docs/toss-holding-values.md).
+- **Current account reads and optional automatic refresh** — approval-free broker reads plus a consented latest observation and current Portfolio view; see [configuration and boundaries](docs/account-observations.md).
 - **MCP transport** — ChatGPT/Codex-compatible stdio gateway and Secure MCP Tunnel deployment wiring
 - **Self-hosted deployment** — Synology-oriented Docker deployment templates
 
@@ -73,6 +74,7 @@ All tests and examples are designed to run without real brokerage accounts or pe
 Representative read capabilities:
 
 - `portfolio.state`
+- `account.state` (when a linked broker reader is configured)
 - `knowledge.current`
 - `knowledge.search`
 - `policy.current`

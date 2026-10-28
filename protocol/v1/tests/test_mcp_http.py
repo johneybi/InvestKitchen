@@ -109,6 +109,27 @@ def _post(client, method, params=None, *, headers):
     return client.post("/mcp", headers={**headers, **routing}, json=_rpc(method, params))
 
 
+def test_live_account_read_works_over_authenticated_http_without_write_approval(signing_key):
+    from protocol.v1.tests.test_account_state import _reader
+    reader, _, calls = _reader()
+    gateway = _gateway()
+    gateway.account_state_reader = reader.read
+    with TestClient(create_http_app(gateway, _verifier(signing_key)), base_url="https://mcp.example.test") as client:
+        headers = {**HEADERS, "Authorization": "Bearer " + _jwt(signing_key)}
+        tools = _post(client, "tools/list", headers=headers).json()["result"]["tools"]
+        tool = next(t for t in tools if t["name"] == "get_account_state")
+        assert tool["annotations"]["readOnlyHint"] is True
+        args = {"portfolio_id": "portfolio-alpha", "account_id": "account-alpha"}
+        read = _post(client, "tools/call", {"name": "get_account_state", "arguments": args}, headers=headers).json()["result"]
+        assert read.get("isError") is not True
+        result = json.loads(read["content"][0]["text"])
+        assert result["status"] == "ok" and result["data"]["approval_required"] is False
+        denied = _post(client, "tools/call", {"name": "get_account_state", "arguments": {
+            **args, "portfolio_id": "portfolio-beta"}}, headers=headers).json()["result"]
+        assert denied["isError"] is True and len(calls) == 1
+        assert _post(client, "tools/call", {"name": "get_account_state", "arguments": args}, headers=HEADERS).status_code == 401
+
+
 @pytest.mark.parametrize("claims", [
     {"iss": "https://wrong.example.test/"}, {"aud": "https://wrong.example.test/mcp"},
     {"exp": 1}, {"iat": int(time.time()) + 3600}, {"nbf": int(time.time()) + 3600},

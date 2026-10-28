@@ -128,6 +128,8 @@ class LocalToolRouter:
         }
 
     def _runtime_available(self, name: str) -> bool:
+        if name == "get_account_state":
+            return self.gateway.account_state_reader is not None
         if name == "get_plan_history":
             return self.gateway.plan_history_reader is not None
         if name in {
@@ -164,6 +166,8 @@ class LocalToolRouter:
             return self.gateway.list_portfolios()
         if name == "get_portfolio_state":
             return self.gateway.get_portfolio_state(arguments["portfolio_id"])
+        if name == "get_account_state":
+            return self.gateway.get_account_state(arguments["portfolio_id"], arguments["account_id"], refresh=arguments.get("refresh", False))
         if name == "get_open_items":
             return self.gateway.get_open_items(arguments["portfolio_id"], limit=arguments.get("limit", 50))
         if name == "get_current_policy":

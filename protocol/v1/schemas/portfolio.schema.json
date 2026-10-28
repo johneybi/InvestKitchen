@@ -8,6 +8,21 @@
     "protocol_version": {"const": "1.0-draft"},
     "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
     "display_name": {"type": "string"},
+    "account_observation_overlays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["account_id", "observed_at", "freshness", "canonical_checkpoint_changed", "observation_ref"],
+        "properties": {
+          "account_id": {"$ref": "common.schema.json#/$defs/id"},
+          "observed_at": {"$ref": "common.schema.json#/$defs/timePoint"},
+          "freshness": {"enum": ["current", "cached", "stale"]},
+          "canonical_checkpoint_changed": {"const": false},
+          "observation_ref": {"$ref": "common.schema.json#/$defs/id"}
+        },
+        "additionalProperties": false
+      }
+    },
     "generated_at": {"$ref": "common.schema.json#/$defs/timePoint"},
     "accounts": {
       "type": "array",

@@ -129,16 +129,19 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             "InvestKitchen / 인베스트키친: retrieve the user's saved investment accounts, "
             "brokerage portfolios, holdings, quantities, cash balances and shared Knowledge. "
             "내 계좌 조회, 토스 계좌, 보유 종목, 잔고, ISA, IRP, 전체 포트폴리오 조회에 사용합니다. "
-            "Reads return stored observations with source dates, not a direct brokerage login "
-            "or a live balance refresh. Available tools and access depend on server-side grants."
+            "Use get_account_state when available for automatically refreshed, read-only broker observations "
+            "without account-sync approval. Portfolio reads may include explicitly enabled automatic observations; inspect source dates. "
+            "Available tools and access depend on server-side grants."
         ),
         instructions=(
             "Use this app for saved account, holdings, cash and portfolio questions, including "
             "내 계좌, 토스 계좌, ISA and IRP. Discover the authorized scope with list_portfolios, "
             "then call get_portfolio_state for each requested portfolio; IDs alone are not account details. "
+            "For current linked-broker holdings or prices, use get_account_state with the returned account ID; "
+            "it automatically refreshes an expired short cache without preview/apply or human confirmation. "
             "Match broker names and account types against returned facts, keeping portfolios separate. "
             "Use fresh reads for current-state follow-ups and preserve source dates, missing data and conflicts. "
-            "These are stored InvestKitchen observations; do not require a new brokerage login for a read. " + (
+            "Do not require a new brokerage login or account-sync approval for a read. " + (
             "Only explicitly granted native updates are available. Preview first, present approval_url to the user, "
             "wait for their independent NAS browser approval, then apply the exact preview and confirm read-back. "
             "Never claim an approved preview is already saved."
@@ -218,6 +221,14 @@ def main() -> int:
     parser.add_argument("--portfolio-checkpoint-root", type=Path)
     parser.add_argument("--market-provider", choices=("none", "toss-native-subprocess"), default="none")
     parser.add_argument("--market-secret-file", type=Path)
+    parser.add_argument("--account-binding-file", type=Path)
+    parser.add_argument("--toss-account-secret-file", type=Path)
+    parser.add_argument("--nhplug-account-secret-file", type=Path)
+    parser.add_argument("--account-cache-ttl-seconds", type=int, default=30)
+    parser.add_argument("--account-observation-root", type=Path)
+    parser.add_argument("--account-observation-policy-file", type=Path)
+    parser.add_argument("--account-observation-key-file", type=Path)
+    parser.add_argument("--account-sync-max-age-seconds", type=int, default=300)
     args = parser.parse_args()
     try:
         if not 1 <= args.port <= 65535:
@@ -234,6 +245,20 @@ def main() -> int:
             portfolio_checkpoint_root=args.portfolio_checkpoint_root,
             market_provider=args.market_provider, market_secret_file=args.market_secret_file,
         )
+        account_bindings = None
+        if args.account_binding_file is not None:
+            account_bindings = json.loads(args.account_binding_file.read_text(encoding="utf-8"))
+            if not isinstance(account_bindings, list) or any(not isinstance(row, dict) for row in account_bindings):
+                raise ValueError("account binding file must contain an array of objects")
+        account_secrets = {name: path for name, path in (
+            ("toss_securities", args.toss_account_secret_file), ("nhplug", args.nhplug_account_secret_file),
+        ) if path is not None}
+        runtime_args.update(account_bindings=account_bindings, account_provider_secret_files=account_secrets,
+                            account_cache_ttl_seconds=args.account_cache_ttl_seconds,
+                            account_sync_max_age_seconds=args.account_sync_max_age_seconds,
+                            account_observation_root=args.account_observation_root,
+                            account_observation_policy_file=args.account_observation_policy_file,
+                            account_observation_key_file=args.account_observation_key_file)
         gateway = build_reference_gateway(**runtime_args, read_only_stores=True)
         writes = None
         if bool(args.write_config) != bool(args.approval_store_root):

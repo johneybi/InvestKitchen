@@ -28,14 +28,33 @@
     },
     {
       "name": "get_portfolio_state",
-      "description": "Read saved investment accounts, broker/account names and types, holdings, quantities, cash, source dates and data gaps for one authorized portfolio_id from list_portfolios. 내 계좌·토스 계좌·보유 종목·잔고·ISA·IRP 조회에 사용합니다. Filter account names from returned facts; these stored observations do not log in to a brokerage or refresh a live balance.",
+      "description": "Read the Portfolio view for one authorized portfolio_id from list_portfolios: accounts, holdings, costs, valuation, cash, source dates and gaps. Approved automatic broker observations are refreshed when needed and reflected in enabled accounts without per-refresh approval; other accounts retain saved checkpoint facts. 내 계좌 목록·보유 상태를 조회합니다. Preserve each account's observation times, partial coverage and stale warnings. Use returned account IDs with get_account_state for a direct linked-broker read.",
       "read_only": true,
+      "open_world": true,
       "required_permissions": ["portfolio.read"],
       "input_schema": {
         "type": "object",
         "required": ["portfolio_id"],
         "properties": {
           "portfolio_id": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "capability-result.schema.json"
+    },
+    {
+      "name": "get_account_state",
+      "description": "Read current holdings, quantities, average purchase prices, purchase amounts, valuation, profit/loss and available cash for one server-bound broker account. 토스 계좌 최신 조회·보유종목·평단·가격·잔고 갱신에 우선 사용합니다. No preview, confirmation or write approval is required. A short private cache refreshes automatically when expired; set refresh=true for an immediate broker reread. Preserve returned source times, partial coverage and stale status. This read never applies an account reconciliation or places an order. Discover portfolio_id with list_portfolios and account_id from get_portfolio_state; never send brokerage credentials or account numbers.",
+      "read_only": true,
+      "open_world": true,
+      "required_permissions": ["portfolio.read"],
+      "input_schema": {
+        "type": "object",
+        "required": ["portfolio_id", "account_id"],
+        "properties": {
+          "portfolio_id": {"type": "string", "minLength": 1},
+          "account_id": {"type": "string", "minLength": 1},
+          "refresh": {"type": "boolean", "default": false}
         },
         "additionalProperties": false
       },
