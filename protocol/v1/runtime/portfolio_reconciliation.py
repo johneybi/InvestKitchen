@@ -734,6 +734,8 @@ def build_reconciliation_candidate_from_latest_checkpoint(
     identity_scope_account_ids: Iterable[str] | None = None,
 ) -> dict[str, Any]:
     portfolio_id = _validate_portfolio_shape(observed_portfolio)
+    created = copy.deepcopy(created_at) if created_at is not None else timepoint()
+    _point(created, code="reconciliation_created_at_invalid")
     try:
         cursor = _journal_cursor_for_snapshot(
             write_store,
@@ -745,7 +747,7 @@ def build_reconciliation_candidate_from_latest_checkpoint(
             write_store,
             portfolio_id=portfolio_id,
             through_commit_id=cursor.get("through_commit_id"),
-            generated_at=created_at,
+            generated_at=created,
             identity_scope_account_ids=identity_scope_account_ids,
         )
         current = projection["materialization"]["portfolio"]
@@ -760,7 +762,7 @@ def build_reconciliation_candidate_from_latest_checkpoint(
         source_ref=source_ref,
         cash_basis_refs=checkpoint.get("cash_basis_refs") or [],
         short_allowed_account_ids=checkpoint.get("short_allowed_account_ids") or [],
-        created_at=created_at,
+        created_at=created,
     )
     if candidate.get("journal_cursor") != cursor:
         raise ReconciliationError("reconciliation_cursor_changed_during_build")

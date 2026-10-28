@@ -248,6 +248,7 @@ def test_mcp_connector_lists_preview_read_only_and_apply_mutating_tools(tmp_path
     assert portfolio_update["properties"]["request_version"] == {"const": 1}
     assert set(portfolio_update["properties"]["changes"]["properties"]) == {
         "position_quantities",
+        "position_observations",
         "cash_amounts",
     }
     assert portfolio_schema["$defs"]["positionChange"]["required"] == ["account_id", "quantity"]

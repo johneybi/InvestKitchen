@@ -115,6 +115,7 @@ Never commit a real credential or generated personal-data bundle. See [`SECURITY
 - [`docs/native-knowledge-write.md`](docs/native-knowledge-write.md) — native Knowledge write model
 - [`docs/personal-advisory-write-path.md`](docs/personal-advisory-write-path.md) — bounded advisory write architecture
 - [`docs/codex-client-usage.md`](docs/codex-client-usage.md) — write-capable MCP client model
+- [`docs/manual-account-updates.md`](docs/manual-account-updates.md) — screen and statement updates for accounts without broker APIs
 - [`docs/gemini-client-usage.md`](docs/gemini-client-usage.md) · [한국어](docs/gemini-client-usage.ko.md) — Read-only Gemini MCP and manual skill registration; synthetic Gemini reads verified, production rollout pending
 - [`docs/chatgpt-app-product-opportunity.md`](docs/chatgpt-app-product-opportunity.md) — possible public ChatGPT app direction
 - [`protocol/v1/README.md`](protocol/v1/README.md) — protocol reference

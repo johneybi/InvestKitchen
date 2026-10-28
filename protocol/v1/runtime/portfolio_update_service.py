@@ -4,7 +4,8 @@ import copy
 import math
 from typing import Any, Callable, Mapping
 
-from protocol.v1.adapters.common import PROTOCOL_VERSION, digest, timepoint
+from protocol.v1.adapters.common import PROTOCOL_VERSION, digest, public_reference, timepoint
+from protocol.v1.runtime.holding_observations import HOLDING_VALUE_FIELDS, validate_holding_values
 from protocol.v1.runtime.native_write_store import NativeWriteStore
 from protocol.v1.runtime.portfolio_checkpoint import (
     CheckpointError,
@@ -43,6 +44,17 @@ def _merge_evidence(existing: Any, source_ref: str) -> list[str]:
     if source_ref not in values:
         values.append(source_ref)
     return values
+
+
+def _resolve_reference(rows: list[dict[str, Any]], field: str, selector: str, *, code: str,
+                       ambiguous_code: str | None = None) -> dict[str, Any]:
+    # Resolve only IDs already present in this current Portfolio. Hashes cannot
+    # authorize a new identity; collisions and raw/public alias ambiguity reject.
+    matches = [row for row in rows if isinstance(row.get(field), str)
+               and selector in {row[field], public_reference(row[field])}]
+    if len(matches) != 1:
+        raise PortfolioUpdateError(ambiguous_code if len(matches) > 1 and ambiguous_code else code)
+    return matches[0]
 
 
 def _current_at_snapshot(
@@ -85,14 +97,17 @@ def _narrow_observation(
     snapshot_effective_at: dict[str, Any],
     source_ref: str,
 ) -> dict[str, Any]:
-    allowed = {"position_quantities", "cash_amounts"}
+    allowed = {"position_quantities", "position_observations", "cash_amounts"}
     if set(changes) - allowed:
         raise PortfolioUpdateError("portfolio_update_changes_fields_invalid")
     position_changes = changes.get("position_quantities", [])
+    position_observations = changes.get("position_observations", [])
     cash_changes = changes.get("cash_amounts", [])
-    if not isinstance(position_changes, list) or not isinstance(cash_changes, list):
+    if not all(isinstance(rows, list) for rows in (position_changes, position_observations, cash_changes)):
         raise PortfolioUpdateError("portfolio_update_changes_invalid")
-    if not position_changes and not cash_changes:
+    if len(position_observations) > 1000:
+        raise PortfolioUpdateError("portfolio_update_changes_invalid")
+    if not position_changes and not position_observations and not cash_changes:
         raise PortfolioUpdateError("portfolio_update_changes_empty")
 
     accounts: dict[str, dict[str, Any]] = {}
@@ -107,11 +122,12 @@ def _narrow_observation(
         accounts[account_id] = row
     current_positions = [row for row in current.get("positions") or [] if isinstance(row, dict)]
     current_cash = [row for row in current.get("cash") or [] if isinstance(row, dict)]
-    observed_positions: list[dict[str, Any]] = []
+    observed_positions_by_id: dict[str, dict[str, Any]] = {}
     observed_cash: list[dict[str, Any]] = []
     touched_holdings: set[str] = set()
     touched_cash: set[str] = set()
     seen_positions: set[tuple[str, str]] = set()
+    claimed_positions: set[str] = set()
     seen_cash: set[str] = set()
 
     position_by_id: dict[str, dict[str, Any]] = {}
@@ -138,8 +154,9 @@ def _narrow_observation(
             raise PortfolioUpdateError("portfolio_update_position_change_duplicate")
         seen_positions.add(key)
         if position_id_mode:
-            matched = position_by_id.get(selector)
-            matches = [matched] if matched is not None and matched.get("account_id") == account_id else []
+            matched = _resolve_reference(current_positions, "position_id", selector,
+                                         code="portfolio_update_position_match_not_unique")
+            matches = [matched] if matched.get("account_id") == account_id else []
         else:
             matches = [
                 row for row in current_positions
@@ -149,6 +166,10 @@ def _narrow_observation(
             ]
         if len(matches) != 1:
             raise PortfolioUpdateError("portfolio_update_position_match_not_unique")
+        position_id = str(matches[0]["position_id"])
+        if position_id in claimed_positions:
+            raise PortfolioUpdateError("portfolio_update_position_change_duplicate")
+        claimed_positions.add(position_id)
         quantity = _number(
             change.get("quantity"),
             code="portfolio_update_position_quantity_invalid",
@@ -170,7 +191,53 @@ def _narrow_observation(
         row["source_evidence"] = _merge_evidence(row.get("source_evidence"), source_ref)
         row["observed_at"] = copy.deepcopy(snapshot_effective_at)
         row["state"] = "closed" if quantity == 0 else "open"
-        observed_positions.append(row)
+        observed_positions_by_id[position_id] = row
+        touched_holdings.add(account_id)
+
+    for change in position_observations:
+        if not isinstance(change, Mapping):
+            raise PortfolioUpdateError("portfolio_update_position_observation_invalid")
+        keys = set(change)
+        fields = {"quantity", *HOLDING_VALUE_FIELDS}
+        if (keys - {"account_id", "symbol", "position_id", *fields}
+                or not (keys & fields) or ("symbol" in keys) == ("position_id" in keys)):
+            raise PortfolioUpdateError("portfolio_update_position_observation_invalid")
+        account_id = change.get("account_id")
+        selector = change.get("position_id") if "position_id" in change else change.get("symbol")
+        if not isinstance(account_id, str) or account_id not in accounts or not isinstance(selector, str) or not selector:
+            raise PortfolioUpdateError("portfolio_update_position_identity_invalid")
+        if "position_id" in change:
+            current_row = _resolve_reference(current_positions, "position_id", selector,
+                                             code="portfolio_update_position_match_not_unique")
+            if current_row.get("account_id") != account_id:
+                raise PortfolioUpdateError("portfolio_update_position_match_not_unique")
+        else:
+            matches = [row for row in current_positions if row.get("account_id") == account_id
+                       and row.get("asset", {}).get("symbol") == change["symbol"] and change["symbol"]]
+            if len(matches) != 1:
+                raise PortfolioUpdateError("portfolio_update_position_match_not_unique")
+            current_row = matches[0]
+        position_id = str(current_row["position_id"])
+        if position_id in claimed_positions:
+            raise PortfolioUpdateError("portfolio_update_position_change_duplicate")
+        claimed_positions.add(position_id)
+        row = copy.deepcopy(current_row)
+        if "quantity" in change:
+            quantity = _number(change["quantity"], code="portfolio_update_position_quantity_invalid", nonnegative=True)
+            if quantity != current_row["quantity"]:
+                for field in HOLDING_VALUE_FIELDS:
+                    row.pop(field, None)
+            row.update(quantity=quantity, quantity_status="confirmed", quantity_basis="user_confirmation",
+                       state="closed" if quantity == 0 else "open")
+        try:
+            values = validate_holding_values(change, currency=str(current_row.get("asset", {}).get("currency") or ""),
+                observed_at=snapshot_effective_at, source_ref=source_ref)
+        except ValueError as exc:
+            raise PortfolioUpdateError("portfolio_update_position_values_invalid") from exc
+        row.update(values)
+        row.update(authority="portfolio_fact", observed_at=copy.deepcopy(snapshot_effective_at),
+                   source_evidence=_merge_evidence(row.get("source_evidence"), source_ref))
+        observed_positions_by_id[position_id] = row
         touched_holdings.add(account_id)
 
     cash_by_id = {
@@ -187,9 +254,12 @@ def _narrow_observation(
         if not cash_id or cash_id in seen_cash:
             raise PortfolioUpdateError("portfolio_update_cash_change_duplicate")
         seen_cash.add(cash_id)
-        current_row = cash_by_id.get(cash_id)
-        if current_row is None:
-            raise PortfolioUpdateError("portfolio_update_cash_match_missing")
+        current_row = _resolve_reference(current_cash, "cash_id", cash_id, code="portfolio_update_cash_match_missing",
+                                         ambiguous_code="portfolio_update_cash_match_ambiguous")
+        internal_id = str(current_row["cash_id"])
+        if internal_id in seen_cash and internal_id != cash_id:
+            raise PortfolioUpdateError("portfolio_update_cash_change_duplicate")
+        seen_cash.add(internal_id)
         account_id = str(current_row.get("account_id") or "")
         if not account_id or account_id not in accounts:
             raise PortfolioUpdateError("portfolio_update_cash_account_invalid")
@@ -203,6 +273,7 @@ def _narrow_observation(
             continue
         value["amount"] = amount
         value["value_basis"] = "observed"
+        value["as_of"] = copy.deepcopy(snapshot_effective_at)
         row["value"] = value
         row["authority"] = "portfolio_fact"
         row["source_evidence"] = _merge_evidence(row.get("source_evidence"), source_ref)
@@ -210,7 +281,7 @@ def _narrow_observation(
         observed_cash.append(row)
         touched_cash.add(account_id)
 
-    if not observed_positions and not observed_cash:
+    if not observed_positions_by_id and not observed_cash:
         raise PortfolioUpdateError("portfolio_update_no_effect")
 
     touched_accounts = touched_holdings | touched_cash
@@ -230,7 +301,7 @@ def _narrow_observation(
         "display_name": str(current.get("display_name") or current["portfolio_id"]),
         "generated_at": copy.deepcopy(snapshot_effective_at),
         "accounts": account_rows,
-        "positions": observed_positions,
+        "positions": list(observed_positions_by_id.values()),
         "cash": observed_cash,
         "transactions": [],
         "policies": copy.deepcopy(current.get("policies") or []),
@@ -274,7 +345,7 @@ def build_portfolio_update_preview(
     portfolio_id = str(request.get("portfolio_id") or "")
     source_ref = str(request.get("source_ref") or "")
     snapshot_effective_at = request.get("snapshot_effective_at")
-    created_at = request.get("created_at")
+    created_at = copy.deepcopy(request["created_at"]) if request.get("created_at") is not None else timepoint()
     if not portfolio_id or not source_ref or not isinstance(snapshot_effective_at, dict):
         raise PortfolioUpdateError("portfolio_update_request_identity_invalid")
     full = request.get("observed_portfolio")
