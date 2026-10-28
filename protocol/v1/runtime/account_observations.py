@@ -231,8 +231,8 @@ def approve_policy_from_tty(root: Path, policy_file: Path, key_file: Path,
 
 
 class CurrentAccountService:
-    def __init__(self, reader: AccountStateReader, store: ApprovedObservationStore):
-        self.reader, self.store = reader, store
+    def __init__(self, reader: AccountStateReader, store: ApprovedObservationStore, *, read_only: bool = False):
+        self.reader, self.store, self.read_only = reader, store, read_only
 
     @staticmethod
     def _age(point, now):
@@ -262,6 +262,25 @@ class CurrentAccountService:
             policy = self.store.authorize(binding)
             if policy is None:
                 return self.reader.read(portfolio_id, account_id, refresh=refresh)
+            if self.read_only:
+                row = self.store.load(binding)
+                if row is None:
+                    return self.reader._result(None, status="unavailable", mode="unknown", now=now,
+                                               code="account_observation_cache_missing")
+                cached = copy.deepcopy(row["result"])
+                age = self._age(cached["data"]["snapshot_effective_at"], now)
+                if not 0 <= age <= self.reader.max_age_seconds or row.get("retry_not_before"):
+                    value = self._failed_result(cached, now, invalid=row.get("invalid_refresh", False))
+                    if not row.get("retry_not_before"):
+                        value["warnings"] = ["The shared observation is old; the separate worker performs broker refreshes."]
+                        value["gaps"][0].update(gap_code="account_observation_waiting_for_refresh",
+                            reason="Shared observations exceed the freshness limit.")
+                    return value
+                cached.update(source_mode="cache", freshness="cached", generated_at=timepoint(now.isoformat()))
+                if refresh:
+                    cached["warnings"] = [*cached.get("warnings", []),
+                        "This service can only reload shared observations; the separate worker performs broker refreshes."]
+                return cached
             with self.store.locked(binding):
                 row = self.store.load(binding)
                 cached = row["result"] if row else None
@@ -290,6 +309,8 @@ class CurrentAccountService:
             return self.reader._result(None, status="blocked", mode="unknown", now=now, code="account_observation_consent_or_store_invalid")
 
     def refresh_due(self) -> dict[str, int]:
+        if self.read_only:
+            raise ObservationConsentError("Read-only observation consumers cannot refresh brokers")
         counts = {"refreshed": 0, "skipped": 0, "failed": 0}
         for row in self.store.scopes():
             try:

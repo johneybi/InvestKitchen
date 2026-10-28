@@ -224,7 +224,7 @@ def test_remote_read_grant_enforces_scope_for_direct_and_composed_account_reads(
     assert portfolio_ids_for_request("build_decision_context", arguments) == ["portfolio-beta"]
 
 
-@pytest.mark.parametrize("automatic", [False, True])
+@pytest.mark.parametrize("automatic", [False, True, "read_only"])
 def test_reference_runtime_reads_account_without_enabling_connector_writes(tmp_path, automatic):
     from pathlib import Path
     root = Path(__file__).resolve().parents[3]
@@ -253,12 +253,19 @@ def test_reference_runtime_reads_account_without_enabling_connector_writes(tmp_p
         store = _approved(private, reader)
         options.update(account_observation_root=store.root, account_observation_policy_file=store.policy_file,
                        account_observation_key_file=store.key_file)
+        if automatic == "read_only":
+            from protocol.v1.runtime.account_observations import CurrentAccountService
+            reader.providers = {"toss_securities": provider}
+            reader.clock = lambda: datetime.now(timezone.utc)
+            CurrentAccountService(reader, store).read("portfolio-alpha", "account-alpha")
+            options["account_observation_read_only"] = True
     gateway = build_reference_gateway(runtime_root=root, manifest=root / "protocol/v1/fixtures/full-reference.instance.json",
         personal_data_root=personal, native_store_root=native.root, portfolio_checkpoint_root=checkpoints.root,
-        read_only_stores=True, account_bindings=[_binding()], account_snapshot_providers={"toss_securities": provider}, **options)
+        read_only_stores=True, account_bindings=[_binding()],
+        account_snapshot_providers={} if automatic == "read_only" else {"toss_securities": provider}, **options)
     assert gateway.connector_handlers == {}
     assert gateway.get_account_state("portfolio-alpha", "account-alpha")["status"] == "ok"
     current = gateway.get_portfolio_state("portfolio-alpha")
-    assert bool(current["data"].get("account_observation_overlays")) is automatic
+    assert bool(current["data"].get("account_observation_overlays")) is bool(automatic)
     _validate(current["data"], "portfolio.schema.json")
     assert checkpoints.read_all() == before
