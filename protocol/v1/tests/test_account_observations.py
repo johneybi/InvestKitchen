@@ -143,6 +143,20 @@ def test_missing_or_tampered_prior_consent_fails_closed(tmp_path, target):
     assert len(calls) == 1
 
 
+def test_tunnel_launcher_preserves_observation_configuration(tmp_path):
+    from protocol.v1.deployment.tunnel_stdio_launcher import child_argv
+    options = dict(runtime_root=tmp_path, manifest=tmp_path / "manifest.json", legacy_workspace=None,
+                   personal_data_root=None, market_provider="none", market_secret_file=None,
+                   account_observation_root=tmp_path / "observations",
+                   account_observation_policy_file=tmp_path / "policy.json",
+                   account_observation_key_file=tmp_path / "key", account_observation_read_only=True)
+    args = child_argv(**options)
+    for key in ("root", "policy-file", "key-file"):
+        assert "--account-observation-" + key in args
+    assert "--account-observation-read-only" in args
+    assert "--write-principal" not in args and "--toss-account-secret-file" not in args
+
+
 def test_revocation_stops_automatic_reflection_without_disabling_ordinary_reads(tmp_path):
     reader, _, calls = _reader()
     store = _approved(tmp_path, reader)
@@ -273,3 +287,28 @@ def test_operator_cli_can_revoke_scope_without_enabling_a_policy(tmp_path):
         assert store.policy()["enabled"] is False
     finally:
         os.umask(previous_umask)
+
+
+def test_read_only_consumer_shares_current_observation_without_lock_write_or_broker(tmp_path, monkeypatch):
+    reader, clock, calls = _reader()
+    store = _approved(tmp_path, reader)
+    CurrentAccountService(reader, store).read("portfolio-alpha", "account-alpha")
+    no_broker, _, _ = _reader()
+    no_broker.providers = {}
+    no_broker.clock = clock.now
+    consumer = CurrentAccountService(no_broker, store, read_only=True)
+    before = {p.name: p.read_bytes() for p in store.root.iterdir()}
+    monkeypatch.setattr(store, "locked", lambda *a: pytest.fail("Consumer opened a writable lock"))
+    monkeypatch.setattr(store, "save", lambda *a: pytest.fail("Consumer wrote observations"))
+    clock.seconds = 240
+    fresh = consumer.read("portfolio-alpha", "account-alpha")
+    assert fresh["status"] == "ok" and fresh["freshness"] == "cached"
+    assert "separate worker" in consumer.read("portfolio-alpha", "account-alpha", refresh=True)["warnings"][-1]
+    clock.seconds = 301
+    assert consumer.read("portfolio-alpha", "account-alpha")["status"] == "stale"
+    clock.seconds = 901
+    assert consumer.read("portfolio-alpha", "account-alpha")["status"] == "unavailable"
+    with pytest.raises(ObservationConsentError, match="cannot refresh"):
+        consumer.refresh_due()
+    assert {p.name: p.read_bytes() for p in store.root.iterdir()} == before
+    assert len(calls) == 1

@@ -200,6 +200,15 @@ case "$MARKET_PROVIDER" in
 esac
 
 ACCOUNT_ARGS="--account-sync-max-age-seconds $ACCOUNT_SYNC_MAX_AGE_SECONDS"
+# Optional operator-owned observation configuration; empty defaults preserve the
+# existing approval-bound reconciliation deployment.
+if [ -n "${INVESTKITCHEN_ACCOUNT_OBSERVATION_ROOT:-}" ]; then
+  [ -n "${INVESTKITCHEN_ACCOUNT_OBSERVATION_POLICY_FILE:-}" ] && [ -n "${INVESTKITCHEN_ACCOUNT_OBSERVATION_KEY_FILE:-}" ] || {
+    echo "InvestKitchen Codex MCP configuration error: incomplete observation configuration" >&2
+    exit 2
+  }
+  ACCOUNT_ARGS="$ACCOUNT_ARGS --account-observation-root $INVESTKITCHEN_ACCOUNT_OBSERVATION_ROOT --account-observation-policy-file $INVESTKITCHEN_ACCOUNT_OBSERVATION_POLICY_FILE --account-observation-key-file $INVESTKITCHEN_ACCOUNT_OBSERVATION_KEY_FILE"
+fi
 case "$ACCOUNT_SYNC" in
   disabled)
     ;;

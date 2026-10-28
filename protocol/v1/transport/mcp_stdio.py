@@ -365,6 +365,7 @@ def main() -> int:
     parser.add_argument("--account-observation-root", type=Path)
     parser.add_argument("--account-observation-policy-file", type=Path)
     parser.add_argument("--account-observation-key-file", type=Path)
+    parser.add_argument("--account-observation-read-only", action="store_true")
     parser.add_argument("--native-store-root", type=Path)
     parser.add_argument("--advisory-state-root", type=Path)
     parser.add_argument("--plan-verification-root", type=Path)
@@ -423,6 +424,7 @@ def main() -> int:
             account_observation_root=args.account_observation_root,
             account_observation_policy_file=args.account_observation_policy_file,
             account_observation_key_file=args.account_observation_key_file,
+            account_observation_read_only=args.account_observation_read_only,
         )
     except (OSError, ValueError):
         sys.stderr.write("TradeMind MCP configuration error\n")

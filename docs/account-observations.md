@@ -98,6 +98,17 @@ identified product release. The worker receives read-only broker credentials and
 observation storage access, with no canonical checkpoint or approval writer.
 Do not loosen an HTTP service's secret isolation just to copy these examples.
 
+A service isolated from brokerage credentials can instead use
+`--account-observation-read-only` with the binding file and the three shared-store
+options above, and **no broker provider secret options**. It verifies the same
+signed consent and latest observations without contacting a broker, taking a
+writable lock or updating any file. The separate worker and enabled gateways
+provide fresh observations. A forced read only reloads the shared snapshot and
+explicitly reports that limitation. Once source observations exceed five minutes
+they are stale; after 15 minutes they are unavailable. This mode allows isolated
+HTTP consumers to show the same current Portfolio view without giving them broker
+credentials or cache write access.
+
 The CLI actions `status`, `tick` and `disable` use the same private path arguments.
 `tick` also needs the appropriate provider secret option. `disable` revokes all
 scopes in that policy immediately without deleting canonical records. Add

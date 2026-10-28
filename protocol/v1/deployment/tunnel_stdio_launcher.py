@@ -37,6 +37,11 @@ def child_argv(
     toss_account_secret_file: Path | None = None,
     nhplug_account_secret_file: Path | None = None,
     account_sync_max_age_seconds: int = 300,
+    account_cache_ttl_seconds: int = 30,
+    account_observation_root: Path | None = None,
+    account_observation_policy_file: Path | None = None,
+    account_observation_key_file: Path | None = None,
+    account_observation_read_only: bool = False,
     native_store_root: Path | None = None,
     advisory_state_root: Path | None = None,
     historical_decision_root: Path | None = None,
@@ -70,6 +75,14 @@ def child_argv(
     if nhplug_account_secret_file is not None:
         argv.extend(["--nhplug-account-secret-file", str(nhplug_account_secret_file)])
     argv.extend(["--account-sync-max-age-seconds", str(account_sync_max_age_seconds)])
+    argv.extend(["--account-cache-ttl-seconds", str(account_cache_ttl_seconds)])
+    for flag, path in (("--account-observation-root", account_observation_root),
+                       ("--account-observation-policy-file", account_observation_policy_file),
+                       ("--account-observation-key-file", account_observation_key_file)):
+        if path is not None:
+            argv.extend([flag, str(path)])
+    if account_observation_read_only:
+        argv.append("--account-observation-read-only")
     if native_store_root is not None:
         argv.extend(["--native-store-root", str(native_store_root)])
     if advisory_state_root is not None:
@@ -105,6 +118,11 @@ def main() -> int:
     parser.add_argument("--toss-account-secret-file", type=Path)
     parser.add_argument("--nhplug-account-secret-file", type=Path)
     parser.add_argument("--account-sync-max-age-seconds", type=int, default=300)
+    parser.add_argument("--account-cache-ttl-seconds", type=int, default=30)
+    parser.add_argument("--account-observation-root", type=Path)
+    parser.add_argument("--account-observation-policy-file", type=Path)
+    parser.add_argument("--account-observation-key-file", type=Path)
+    parser.add_argument("--account-observation-read-only", action="store_true")
     parser.add_argument("--native-store-root", type=Path)
     parser.add_argument("--advisory-state-root", type=Path)
     parser.add_argument("--historical-decision-root", type=Path)
@@ -126,6 +144,11 @@ def main() -> int:
         toss_account_secret_file=args.toss_account_secret_file.resolve() if args.toss_account_secret_file else None,
         nhplug_account_secret_file=args.nhplug_account_secret_file.resolve() if args.nhplug_account_secret_file else None,
         account_sync_max_age_seconds=args.account_sync_max_age_seconds,
+        account_cache_ttl_seconds=args.account_cache_ttl_seconds,
+        account_observation_root=args.account_observation_root.resolve() if args.account_observation_root else None,
+        account_observation_policy_file=args.account_observation_policy_file.resolve() if args.account_observation_policy_file else None,
+        account_observation_key_file=args.account_observation_key_file.resolve() if args.account_observation_key_file else None,
+        account_observation_read_only=args.account_observation_read_only,
         native_store_root=args.native_store_root.resolve() if args.native_store_root else None,
         advisory_state_root=args.advisory_state_root.resolve() if args.advisory_state_root else None,
         historical_decision_root=(

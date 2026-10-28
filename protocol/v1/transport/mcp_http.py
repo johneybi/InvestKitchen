@@ -228,6 +228,7 @@ def main() -> int:
     parser.add_argument("--account-observation-root", type=Path)
     parser.add_argument("--account-observation-policy-file", type=Path)
     parser.add_argument("--account-observation-key-file", type=Path)
+    parser.add_argument("--account-observation-read-only", action="store_true")
     parser.add_argument("--account-sync-max-age-seconds", type=int, default=300)
     args = parser.parse_args()
     try:
@@ -258,7 +259,8 @@ def main() -> int:
                             account_sync_max_age_seconds=args.account_sync_max_age_seconds,
                             account_observation_root=args.account_observation_root,
                             account_observation_policy_file=args.account_observation_policy_file,
-                            account_observation_key_file=args.account_observation_key_file)
+                            account_observation_key_file=args.account_observation_key_file,
+                            account_observation_read_only=args.account_observation_read_only)
         gateway = build_reference_gateway(**runtime_args, read_only_stores=True)
         writes = None
         if bool(args.write_config) != bool(args.approval_store_root):

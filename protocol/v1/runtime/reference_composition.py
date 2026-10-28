@@ -815,6 +815,7 @@ def build_reference_gateway(
     account_observation_root: Path | None = None,
     account_observation_policy_file: Path | None = None,
     account_observation_key_file: Path | None = None,
+    account_observation_read_only: bool = False,
 ) -> ReadOnlyGatewayFacade:
     if read_only_stores and (write_principal is not None or write_grant is not None):
         raise ValueError("Read-only stores cannot receive write authority")
@@ -1065,7 +1066,9 @@ def build_reference_gateway(
             raise ValueError("Plan verification namespace conflicts with a personal Portfolio")
         configured_portfolio_ids.extend(plan_portfolio_stores)
     account_reader = None
-    if account_bindings is not None and configured_account_providers:
+    if account_observation_read_only and configured_account_providers:
+        raise ValueError("Read-only observation consumers must not receive broker credentials or providers")
+    if account_bindings is not None and (configured_account_providers or account_observation_read_only):
         account_reader = AccountStateReader(
             AccountBindingRegistry(account_bindings), configured_account_providers,
             portfolio_ids=configured_portfolio_ids, cache_ttl_seconds=account_cache_ttl_seconds,
@@ -1074,6 +1077,8 @@ def build_reference_gateway(
         )
     account_read = account_reader.read if account_reader is not None else None
     observation_options = (account_observation_root, account_observation_policy_file, account_observation_key_file)
+    if account_observation_read_only and any(value is None for value in observation_options):
+        raise ValueError("Read-only observation consumers require a signed shared observation store")
     if any(value is not None for value in observation_options):
         if account_reader is None or any(value is None for value in observation_options):
             raise ValueError("Automatic observations require a reader, private data root, approved policy and signing key")
@@ -1092,7 +1097,7 @@ def build_reference_gateway(
             if row["portfolio_id"] not in configured_portfolio_ids:
                 raise ValueError("Automatic observation portfolio scope is not configured")
             observation_store.authorize(account_reader.registry.resolve(row["portfolio_id"], row["account_id"]))
-        service = CurrentAccountService(account_reader, observation_store)
+        service = CurrentAccountService(account_reader, observation_store, read_only=account_observation_read_only)
         account_read = service.read
         if "portfolio.state" in handlers:
             original_portfolio_read = handlers["portfolio.state"]
