@@ -565,7 +565,7 @@
     },
     {
       "name": "preview_portfolio_update",
-      "description": "Preview a manual account update from a broker screen or document; a broker API binding is not required. Prefer changes.position_observations for existing holdings: pass independently observed quantity, average purchase price, purchase amount and valuation exactly as displayed, with value_basis=observed. Never replace a displayed average by principal/quantity just to make numbers agree. Public position_id and cash_id values returned by get_portfolio_state are valid selectors. Omit unobserved fields; other holdings, cash kinds and accounts remain unchanged. Omit created_at to use server time. Requires explicit confirmation and apply before records are stored. 수동 IRP·연금·은행 계좌 화면 업데이트에 사용합니다.",
+      "description": "Preview a manual account update from a broker screen or document; a broker API binding is not required. Use changes.position_observations for existing holdings, changes.position_additions for new listed stocks or ETFs with a verified symbol, venue and currency, and changes.cash_amounts for existing cash. These can be combined in one preview. Pass only observed quantities, purchase values and valuation; omit missing quantities and averages without estimating them. Public position_id and cash_id values returned by get_portfolio_state are valid selectors. Omit created_at to use server time. Requires explicit confirmation and apply before records are stored. 수동 IRP·연금·은행 계좌 화면 업데이트에 사용합니다.",
       "read_only": true,
       "destructive": false,
       "required_permissions": ["portfolio.update"],
@@ -587,6 +587,7 @@
                 "properties": {
                   "position_quantities": {"type": "array", "items": {"$ref": "#/$defs/positionChange"}},
                   "position_observations": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/positionObservation"}},
+                  "position_additions": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/positionAddition"}},
                   "cash_amounts": {"type": "array", "items": {"$ref": "#/$defs/cashChange"}}
                 },
                 "additionalProperties": false
@@ -833,6 +834,36 @@
                   "valuation"
                 ]
               }
+            ],
+            "additionalProperties": false
+          },
+          "positionAddition": {
+            "type": "object",
+            "required": ["account_id", "asset"],
+            "properties": {
+              "account_id": {"type": "string", "minLength": 1},
+              "asset": {
+                "type": "object",
+                "required": ["asset_type", "symbol", "venue", "currency", "display_name"],
+                "properties": {
+                  "asset_type": {"enum": ["stock", "etf"]},
+                  "symbol": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9.-]{0,31}$"},
+                  "venue": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,31}$"},
+                  "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+                  "display_name": {"type": "string", "minLength": 1, "maxLength": 200}
+                },
+                "additionalProperties": false
+              },
+              "quantity": {"type": "number", "exclusiveMinimum": 0},
+              "cost_basis_values": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/observedMoney"}},
+              "avg_cost_values": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/observedMoney"}},
+              "valuation": {"$ref": "#/$defs/observedValuation"}
+            },
+            "anyOf": [
+              {"required": ["quantity"]},
+              {"required": ["cost_basis_values"]},
+              {"required": ["avg_cost_values"]},
+              {"required": ["valuation"]}
             ],
             "additionalProperties": false
           },

@@ -183,6 +183,31 @@ def test_signed_http_native_write_requires_human_review_and_reads_back(setup, ki
     assert "review" not in evidence and "Cookie" not in journal.read_text()
 
 
+def test_listed_holding_addition_is_reviewable_and_requires_browser_approval(setup):
+    client, headers, _, _, backends = setup
+    request = _narrow_request()
+    request["changes"] = {"position_additions": [{
+        "account_id": "account-alpha",
+        "asset": {"asset_type": "etf", "symbol": "0123X0", "venue": "KRX",
+                  "currency": "KRW", "display_name": "Synthetic mixed ETF"},
+        "valuation": {"currency": "KRW", "value_basis": "observed", "market_value": 280},
+    }]}
+    preview = _call(client, headers, "preview_portfolio_update", {"update": request})["structuredContent"]
+    assert preview["status"] == "review_required"
+    args = {key: preview[key] for key in ("preview_id", "confirmation")}
+    assert _call(client, headers, "apply_portfolio_update", args)["isError"]
+    path, _ = _browser_form(client, preview)
+    page = client.get(path)
+    assert page.status_code == 200
+    assert all(value in page.text for value in ("0123X0", "quantity_status", "unknown", "market_value", "280"))
+    _approve(client, preview)
+    applied = _call(client, headers, "apply_portfolio_update", args)["structuredContent"]
+    assert applied["status"] == "applied" and applied["read_back"]["matches"]
+    portfolio = backends["fixture-reader"].get_portfolio_state("portfolio-alpha")["data"]
+    row = next(row for row in portfolio["positions"] if row["asset"]["symbol"] == "0123X0")
+    assert row["quantity"] is None and row["valuation"]["market_value"] == 280
+
+
 def test_write_discovery_requires_server_grant_and_write_scope(setup, signing_key):
     client, headers, _, _, _ = setup
     tools = _post(client, "tools/list", headers=headers).json()["result"]["tools"]

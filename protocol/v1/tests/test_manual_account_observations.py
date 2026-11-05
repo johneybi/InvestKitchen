@@ -102,6 +102,111 @@ def test_manual_observations_without_created_at_apply_through_mcp_and_persist(tm
     assert next(row for row in portfolio["positions"] if row["asset"]["symbol"] == "000660")["quantity"] == 3
 
 
+def _addition():
+    return {
+        "account_id": "account-alpha",
+        "asset": {"asset_type": "etf", "symbol": "0123X0", "venue": "KRX",
+                  "currency": "KRW", "display_name": "Synthetic mixed ETF"},
+        "cost_basis_values": [_money(300)],
+        "valuation": {"currency": "KRW", "value_basis": "observed", "market_value": 280},
+    }
+
+
+def test_add_listed_holding_with_unreported_quantity_in_combined_mcp_update(tmp_path):
+    server = _server(tmp_path)
+    update = _manual_request()
+    update["changes"].update(position_additions=[_addition()],
+                             cash_amounts=[{"cash_id": "cash-alpha", "amount": 820}])
+    preview = _call(server, "preview_portfolio_update", {"update": update}, request_id="add-preview")
+    assert preview["status"] == "review_required"
+    assert preview["summary"]["position_changes"] == 2
+    added, = [diff for diff in preview["differences"] if diff["change_type"] == "added"]
+    fields = {row["field"]: row["observed"] for row in added["field_changes"]}
+    assert fields["quantity_status"] == "unknown"
+    assert fields["valuation"]["market_value"] == 280
+
+    before = _call(server, "get_portfolio_state", {"portfolio_id": "portfolio-alpha"}, request_id="add-before")["data"]
+    assert not any(row["asset"]["symbol"] == "0123X0" for row in before["positions"])
+    applied = _call(server, "apply_portfolio_update", {
+        "preview_id": preview["preview_id"], "confirmation": preview["confirmation"],
+    }, request_id="add-apply")
+    assert applied["status"] == "applied"
+    assert applied["read_back"]["matches"] is True
+    fresh_server = _existing_server(tmp_path)
+    portfolio = _call(fresh_server, "get_portfolio_state", {"portfolio_id": "portfolio-alpha"}, request_id="add-read")["data"]
+    positions = {row["asset"]["symbol"]: row for row in portfolio["positions"]}
+    row = positions["0123X0"]
+    assert row["quantity"] is None
+    assert row["quantity_status"] == row["quantity_basis"] == "unknown"
+    assert "avg_cost_values" not in row
+    assert row["cost_basis_values"][0]["amount"] == 300
+    assert row["valuation"]["market_value"] == 280
+    assert positions["005930"]["cost_basis_values"][0]["amount"] == 1003
+    assert positions["000660"]["quantity"] == 3
+    assert portfolio["cash"][0]["value"]["amount"] == 820
+    assert portfolio["cash"][0]["cash_kind"] == before["cash"][0]["cash_kind"]
+    assert portfolio["transactions"] == before["transactions"]
+
+    # The quantity can be filled from a later observation using the saved ID.
+    update["changes"] = {"position_quantities": [
+        {"account_id": "account-alpha", "position_id": row["position_id"], "quantity": 7},
+    ]}
+    update["snapshot_effective_at"] = _tp("2026-09-22T00:00:00Z")
+    later = _call(fresh_server, "preview_portfolio_update", {"update": update}, request_id="add-fill-quantity")
+    assert later["status"] == "review_required"
+    assert any(change["field"] == "quantity" and change["observed"] == 7
+               for diff in later["differences"] for change in diff["field_changes"])
+
+
+@pytest.mark.parametrize(("case", "code"), [
+    ("existing_symbol", "portfolio_update_position_addition_already_exists"),
+    ("repeated_symbol", "portfolio_update_position_addition_already_exists"),
+    ("unknown_account", "portfolio_update_position_addition_account_unknown"),
+    ("missing_venue", "portfolio_update_position_addition_asset_invalid"),
+    ("invalid_quantity", "portfolio_update_position_quantity_invalid"),
+    ("currency_mismatch", "portfolio_update_position_values_invalid"),
+    ("no_observed_values", "portfolio_update_position_addition_invalid"),
+])
+def test_invalid_additions_reject_combined_preview(tmp_path, case, code):
+    stores = _stores(tmp_path)
+    update = _manual_request()
+    addition = _addition()
+    additions = [addition]
+    if case == "existing_symbol":
+        addition["asset"].update(symbol="005930", venue="XKRX")
+    elif case == "repeated_symbol":
+        additions.append(copy.deepcopy(addition))
+    elif case == "unknown_account":
+        addition["account_id"] = "account-missing"
+    elif case == "missing_venue":
+        addition["asset"].pop("venue")
+    elif case == "invalid_quantity":
+        addition["quantity"] = 0
+    elif case == "currency_mismatch":
+        addition["valuation"]["currency"] = "USD"
+    else:
+        addition.pop("valuation")
+        addition.pop("cost_basis_values")
+    update["changes"]["position_additions"] = additions
+    with pytest.raises(PortfolioUpdateError, match=code):
+        _preview(update, stores)
+
+
+def test_new_holding_with_observed_quantity_needs_no_inferred_values(tmp_path):
+    update = _manual_request()
+    addition = _addition()
+    addition.pop("cost_basis_values")
+    addition.pop("valuation")
+    addition["quantity"] = 7
+    update["changes"] = {"position_additions": [addition]}
+    preview = _preview(update, _stores(tmp_path))
+    added = next(diff for diff in preview["review"]["differences"] if diff["change_type"] == "added")
+    fields = {row["field"]: row["observed"] for row in added["field_changes"]}
+    assert fields["quantity"] == 7
+    assert fields["quantity_basis"] == "direct_observation"
+    assert not {"cost_basis_values", "avg_cost_values", "valuation"} & fields.keys()
+
+
 def test_public_ids_roundtrip_without_exposing_internal_ids(tmp_path):
     base = _portfolio()
     base["positions"][0]["position_id"] = "legacy-position:synthetic-private-name"
