@@ -90,7 +90,7 @@
         "portfolio_id": {"$ref": "common.schema.json#/$defs/id"},
         "account_id": {"$ref": "common.schema.json#/$defs/id"},
         "asset": {"$ref": "#/$defs/assetRef"},
-        "quantity": {"type": "number"},
+        "quantity": {"type": ["number", "null"], "description": "Null means the holding was observed but its quantity is unknown."},
         "quantity_status": {"enum": ["confirmed", "confirmed_minimum", "estimated_current", "unknown"]},
         "quantity_basis": {"enum": ["direct_observation", "execution_adjusted", "balance_reconciled", "carried_forward", "user_confirmation", "unknown"]},
         "cost_basis_values": {"type": "array", "items": {"$ref": "common.schema.json#/$defs/money"}},
@@ -103,6 +103,12 @@
         "authority": {"enum": ["portfolio_fact", "estimated_portfolio_state", "unknown"]},
         "state": {"enum": ["open", "closed", "unknown"]}
       },
+      "if": {"properties": {"quantity": {"type": "null"}}},
+      "then": {"properties": {
+        "quantity_status": {"const": "unknown"},
+        "quantity_basis": {"const": "unknown"},
+        "state": {"enum": ["open", "unknown"]}
+      }},
       "additionalProperties": false
     },
     "positionValuation": {
