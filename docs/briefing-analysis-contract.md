@@ -43,6 +43,35 @@ explicit. A lack of changes is a valid result; a missing previous briefing is
 not evidence of no change. Analysis is Advice, not a Decision, transaction,
 approval receipt or authorization to execute.
 
+## Consumer procedure
+
+For each explicitly authorized portfolio, call `get_stock_analysis_context`
+once per run. For a manual stock question include the requested KRX symbol;
+for a briefing leave `symbols` empty to include detected holdings. Treat the
+returned direct broker observation separately from older checkpoint facts;
+it may be unavailable for accounts without a provider. Check each response's
+source timestamp, status, completeness and gaps. A missing, stale, failed,
+truncated or partial input must not be presented as a current complete fact.
+Account impact remains limited until per-account freshness, available cash,
+currency and complete valuation are independently established.
+
+Investigate public company disclosures and market news independently using
+only public security identifiers and event terms. For candidate discovery,
+state the actual exchange universe, its coverage and observation time, the
+screening thresholds for liquidity, the event window and ranking method before
+selecting up to three candidates. Exclude holdings when seeking new candidates.
+If a market-wide universe, liquidity, event or source cannot be checked, report
+that gap and do not substitute a watchlist as the market. Separate price
+observations from hypotheses; give short- and longer-horizon evidence,
+conditions and invalidation, and never imply that advice authorizes orders.
+
+`quote_status` is conservative: every symbol must carry its own current source
+timestamp. The provider's retrieval time does not establish quote freshness.
+Moving averages are calculated only for ordered, dated, current complete daily
+series; a daily bar may still be unfinished. Session is `unknown` until a
+verified calendar source and venue coverage are connected. Never interpret a
+missing previous briefing as evidence that nothing changed.
+
 Before enabling recurring runs, integrate the approved history path and obtain
 verified calendar and market-wide discovery sources. Test repeat runs, stale
 sources, partial failures and calendar exceptions. Verify a manual run in the target
