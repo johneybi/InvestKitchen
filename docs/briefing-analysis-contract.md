@@ -1,6 +1,9 @@
 # Korean market analysis and briefing: implementation boundary
 
-Status: **partial implementation** for [issue #30](https://github.com/johneybi/InvestKitchen/issues/30).
+Status: **partial server implementation**, with a separate read-only ChatGPT
+scheduled workflow, for [issue #30](https://github.com/johneybi/InvestKitchen/issues/30).
+The server changes below are not deployed merely because a ChatGPT task works
+against the already deployed individual read tools.
 The `get_stock_analysis_context` MCP read composes scoped Portfolio, current
 Policy and Plan, bounded broker-account reads when supported, quotes and daily
 bars. It is shared evidence for manual analysis and briefings; it does not
@@ -83,9 +86,71 @@ series; a daily bar may still be unfinished. Session is `unknown` until a
 verified calendar source and venue coverage are connected. Never interpret a
 missing previous briefing as evidence that nothing changed.
 
-Before enabling recurring runs, integrate the approved history path and obtain
-verified calendar and market-wide discovery sources. Test repeat runs, stale
-sources, partial failures and calendar exceptions. Verify a manual run in the target
-ChatGPT project and then verify unattended access and actual receipt. The local
-Codex scheduler is a different execution surface and is not evidence that a web
-ChatGPT task can access this account's custom MCP connection.
+Unattended writes require an approved history authorization path. They are not a
+prerequisite for a read-only briefing that explicitly reports prior-briefing
+comparison as unavailable. Test repeat runs, stale sources, partial failures and
+calendar exceptions. Verify manual reads and unattended access independently.
+The local Codex scheduler is a different execution surface and is not evidence
+that a web ChatGPT task can access a custom MCP connection.
+
+## Read-only ChatGPT scheduled workflow
+
+A first usable workflow can run against existing deployed tools without deploying
+the new aggregate endpoint or granting any background write authority:
+
+1. Discover authorized portfolios with `list_portfolios`. Read each portfolio,
+   its current policy and active plans on every run. Discover broker account IDs
+   from the portfolio response and call `get_account_state(refresh=true)` when
+   available. Never substitute prior chat contents for a failed read.
+2. Read quotes and daily bars for domestic holdings in bounded batches. Preserve
+   per-source times, partial coverage and currency boundaries. Complete holdings
+   with incomplete cash still support bounded holding analysis, not invented
+   account-wide weights or order quantities.
+3. Independently research exchange notices, public market rankings, disclosures
+   and news. State actual coverage: a public ranking is not an exhaustive market
+   scan. If event evidence or liquidity cannot be checked, omit new candidates.
+   Keep private account content out of public queries.
+4. Return at most three priorities, holding-specific conditional advice, at most
+   three researched new candidates, public citations and material data gaps.
+   Compare with current InvestKitchen plans where possible; mark unavailable
+   briefing history explicitly. Do not write decisions, transactions or records.
+5. Store the complete procedure in each scheduled task's instructions. Start
+   each run in a fresh chat so project memory is not a hidden dependency. Results
+   remain in ChatGPT's own run history; this is not InvestKitchen history storage.
+
+The initial recurring configuration uses weekdays at 08:15 and 16:15 in
+`Asia/Seoul`, matching the web editor's offered 15-minute time slots. Weekday
+scheduling is not a trading calendar: each run checks holidays and special
+sessions, or labels the session unverified. A holiday run returns a short notice.
+The afternoon report is after the regular session, not necessarily after all
+venues have closed. An off-schedule manual test labels its real execution time.
+
+### Verification and recovery
+
+Keep these states separate: saved task, manual Run now, clock-triggered read,
+complete briefing generation, recurring-session delivery, and backend deployment.
+An observed one-time clock-triggered run on 2026-11-05 successfully used the
+existing InvestKitchen reads and reported partial data coverage. This verifies
+that tested connection, not every future run or the proposed aggregate endpoint.
+A separately started full briefing also completed against the existing server:
+it read current broker observations, policy and plans, quotes and daily bars,
+researched public disclosures/news, and reported unavailable account bindings,
+incomplete cash and conflicting price sources. The two recurring schedules are
+registered; their future regular-session runs remain distinct from this manual
+test. No server code was deployed as part of scheduling. The ChatGPT project
+instructions were also extended, preserving their existing operating contract,
+so manual stock questions use the same fresh-read and conditional-advice rules.
+
+The web UI can transiently show an unreadable response while a run is loading.
+Reopen the existing run from Scheduled or use its reload-response control before
+declaring a provider failure. Inspect the actual completed result and source
+times; a scheduled task row or a spinner is not evidence of successful analysis.
+Do not click Run now repeatedly to recover rendering, because that starts new
+work. Preserve existing jobs and avoid duplicate recurring schedules.
+
+If a source is unavailable, retry once, report the affected analysis as limited,
+and continue unaffected reads. If InvestKitchen is wholly unavailable, report
+the connection failure instead of constructing personalized advice from memory.
+Pause the specific task to roll back scheduling; no portfolio mutation or server
+deployment is needed to roll back this read-only workflow. Keep task IDs, chat
+URLs, private screenshots and account contents out of the product repository.
