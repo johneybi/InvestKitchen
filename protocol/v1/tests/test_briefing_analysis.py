@@ -28,6 +28,7 @@ def test_session_requires_calendar_evidence_even_on_weekday():
     assert session_status(holiday, now=NOW, max_age_seconds=60)["session"] == "closed"
     assert session_status({**holiday, "session": "special"}, now=NOW, max_age_seconds=60)["session"] == "special"
     assert session_status({**holiday, "coverage": None}, now=NOW, max_age_seconds=60)["session"] == "unknown"
+    assert session_status({**holiday, "observed_at": "2026-11-05T08:00:00+09:00"}, now=NOW, max_age_seconds=60) == {"status": "stale", "session": "unknown"}
 
 
 def test_sma_and_weight_are_deterministic_and_bounded():

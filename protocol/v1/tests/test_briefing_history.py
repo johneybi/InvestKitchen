@@ -1,6 +1,6 @@
 import copy
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -62,3 +62,17 @@ def test_concurrent_retries_record_once(tmp_path):
                               grant=GRANT, approval_store=store, now=NOW)["status"]
     with ThreadPoolExecutor(max_workers=4) as executor:
         assert sorted(executor.map(record, range(4))) == ["already_recorded"] * 3 + ["recorded"]
+
+
+def test_expired_approval_and_cross_portfolio_grant_fail_closed(tmp_path):
+    store = TrustedApprovalStore(tmp_path / "approvals")
+    preview = preview_briefing("fixture-a", "expiry", {"summary": "synthetic"}, now=NOW)
+    approval = issue(store, preview)
+    root = tmp_path / "history"
+    with pytest.raises(PermissionError):
+        apply_briefing(root, preview, approval, principal=PRINCIPAL, grant=GRANT,
+                       approval_store=store, now=NOW + timedelta(minutes=6))
+    with pytest.raises(PermissionError):
+        apply_briefing(root, preview, approval, principal=PRINCIPAL,
+                       grant={**GRANT, "portfolio_scope": ["different"]}, approval_store=store, now=NOW)
+    assert not root.exists()
