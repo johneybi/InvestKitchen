@@ -30,6 +30,17 @@ fixed clock assumption is sufficient. The proposed 08:20 and 16:10 Asia/Seoul
 times are defaults for evaluation, not verified market boundaries or confirmed
 user preferences; 16:10 does not imply all trading has ended.
 
+As of the documentation review on 2026-11-05, the [KRX KOSPI trading-hours
+page](https://global.krx.co.kr/contents/GLB/06/0602/0602010201/GLB0602010201T1.jsp)
+lists a 09:00–15:30 regular session and an after-market session from 16:00 to
+20:00. [NXT's trading-system page](https://www.nextrade.co.kr/menu/transactionSys.do)
+lists its pre-market as 08:00–08:50 and its after-market trading as
+15:40–20:00. Thus 08:20 can already be within NXT pre-market, and 16:10 can be
+within both venues' after-market trading; neither implies that the quoted
+instrument or provider covers that venue. These general hours are not a
+substitute for a current holiday, special-session or instrument-eligibility
+feed. All times in this paragraph are Asia/Seoul.
+
 The existing symbol quote/OHLCV reads do not discover a market-wide candidate
 universe. A production implementation still needs an attributed universe,
 liquidity and event data, coverage rules, bounded selection, public disclosure
