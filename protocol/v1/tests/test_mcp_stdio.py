@@ -120,6 +120,7 @@ def test_mcp_tools_list_is_deterministic_read_only_and_runtime_filtered() -> Non
     tools = response["result"]["tools"]
     names = [tool["name"] for tool in tools]
     assert names == [
+        "get_stock_analysis_context",
         "get_capabilities",
         "list_portfolios",
         "get_portfolio_state",

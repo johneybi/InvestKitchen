@@ -101,6 +101,7 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
     catalog = load_tool_catalog()
     names = {tool["name"] for tool in catalog["tools"]}
     assert names == {
+        "get_stock_analysis_context",
         "get_capabilities",
         "list_portfolios",
         "get_portfolio_state",
@@ -156,7 +157,7 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
 def test_tools_list_exposes_machine_readable_input_contracts() -> None:
     response = _router().handle_request({"request_id": "list-1", "method": "tools.list", "params": {}})
     assert response["ok"] is True
-    assert len(response["result"]["tools"]) == 16
+    assert len(response["result"]["tools"]) == 17
     portfolios = next(tool for tool in response["result"]["tools"] if tool["name"] == "list_portfolios")
     assert portfolios["input_schema"] == {"type": "object", "properties": {}, "additionalProperties": False}
     assert portfolios["output_contract"] == "portfolio-scope-list"
