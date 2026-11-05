@@ -1,5 +1,61 @@
 # Stock analysis source integration
 
+## Decision reflection companion
+
+`05_Decision_Reflection_Protocol.md` adds optional, adaptive PRE/POST reflection
+to the analysis workflow. The source is methodology only; it contains no private
+journals or historical account data. It preserves the distinction between an
+analysis opinion, a user-confirmed decision, an executed transaction and a saved
+reflection. The current reflection session adapter does not establish durable
+reflection storage or historical pattern retrieval.
+
+The adaptation was informed by the legacy TradeMind application prompt sources
+`ai/prompts/system/system_v1.9.txt` and `system_v2.0_compact.txt`, its v2 product
+definition and review-intake behavior, the legacy framework's personal entry
+flows, and InvestKitchen's `reflection_adapter.py` PRE/POST contract. They were
+read as migration references, not installed as runtime dependencies. No personal
+reflection or legacy database was migrated.
+
+Deliberate adaptations: preserve open questions and process-versus-outcome review;
+do not force a bias label, fixed turn count, binary answer, or inferred emotion;
+accept user corrections without dismissing them as rationalization. Legacy
+reflection-only restrictions must not disable InvestKitchen's separate stock
+analysis. A factual question should not trigger a mandatory mental questionnaire.
+
+Project routing: read 05 when the user requests a mental check or reflection, or
+when their explicitly stated concern warrants a short check. Answer the investment
+question first where applicable; ask one relevant question at a time. Morning
+briefings carry one relevant action-before-check; afternoon briefings separate
+process from outcome only when actual actions are known. Scheduled runs must not
+invent current emotions, executed trades or persistent reflection history.
+
+Suggested synthetic checks:
+
+- Explicit FOMO: acknowledge only the stated concern; ask one open question;
+  do not label a disorder, prescribe a trade or invent an emotion score.
+- Plan-following loss versus rule-breaking gain: separate outcome from process;
+  do not reward the rule breach or condemn a loss by itself; no automatic Policy
+  update or claim of persistence.
+- Factual company question: answer without forcing a mental questionnaire.
+- Scheduled report with no actual trade or emotional-state data: no invented
+  trade, regret, diagnosis or repeated behavioral pattern; finish the report
+  without waiting for a reply.
+
+The deployed project routing also caps each reflection reply at one actual
+question: do not append a second "why?" after a confirmation question. Inspect
+the generated response, since a model can repeat the rule and still violate it.
+
+On 2026-11-05, a manual four-case ChatGPT exercise separated process from outcome,
+answered the factual question without a mental questionnaire, and did not invent
+trades or emotions in the scheduled-report example. The first PRE example asked
+two consecutive questions. Routing was tightened and a fresh-chat PRE rerun
+produced one open question without a diagnosis, trade instruction or persistence
+claim. These are inspected synthetic responses, not clinical validation, proof
+of source retrieval, or verification of future recurring runs. No personal
+reflection data was used in these checks.
+
+## Stock analysis source
+
 `04_Stock_Analysis_Protocol.md` is a reusable, account-free Korean analysis
 methodology. The deployed ChatGPT project may store it as a pasted `.txt` source;
 the content, version and responsibility are the same. The existing project-only

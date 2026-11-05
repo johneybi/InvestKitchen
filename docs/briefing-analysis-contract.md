@@ -172,3 +172,14 @@ method, preserving their schedules. Saved instructions were read back. The
 synthetic project exercise checked reasoning boundaries; the updated method has
 not yet been verified in a clock-triggered recurring briefing.
 
+### Decision reflection companion
+
+The [PRE/POST protocol](chatgpt-project/05_Decision_Reflection_Protocol.md)
+adapts the former TradeMind method for optional, question-led reflection while
+preserving the independent stock-analysis workflow. The project source and
+routing instruction were saved, and the existing morning/afternoon tasks gained
+self-contained before-action/process-review guidance without schedule changes.
+Scheduled runs cannot infer the user's current emotion or executed trades from a
+market move. Starting a reflection session is not durable reflection persistence;
+no personal journal, legacy database, policy change or transaction was migrated.
+
