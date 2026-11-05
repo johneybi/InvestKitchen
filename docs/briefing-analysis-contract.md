@@ -154,3 +154,21 @@ the connection failure instead of constructing personalized advice from memory.
 Pause the specific task to roll back scheduling; no portfolio mutation or server
 deployment is needed to roll back this read-only workflow. Keep task IDs, chat
 URLs, private screenshots and account contents out of the product repository.
+
+### Analysis methodology
+
+The reusable [stock analysis protocol](chatgpt-project/04_Stock_Analysis_Protocol.md)
+adds the reasoning procedure beyond data access and board formatting. It separates
+business/earnings, price-implied expectations and valuation, entry timing, and
+portfolio suitability. It requires material counterevidence, attributable inputs,
+industry-appropriate valuation and observable invalidation. The accompanying
+[integration notes](chatgpt-project/README.md) define synthetic behavioral checks
+and their limits. Protocol text does not supply missing fundamental, consensus or
+flow feeds, and synthetic compliance does not establish live analytical accuracy.
+
+The methodology source and routing instruction were saved in the ChatGPT project.
+Both existing recurring tasks were also updated with a self-contained condensed
+method, preserving their schedules. Saved instructions were read back. The
+synthetic project exercise checked reasoning boundaries; the updated method has
+not yet been verified in a clock-triggered recurring briefing.
+
