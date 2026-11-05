@@ -3,6 +3,41 @@
   "transport_surface": "gateway-tools",
   "tools": [
     {
+      "name": "get_stock_analysis_context",
+      "description": "Read bounded current portfolio, policy, plans and explicit or held KRW instrument market evidence for manual analysis or briefing. This is evidence only, not a decision or execution authorization. Missing calendar, market-wide discovery and news remain explicit gaps.",
+      "read_only": true,
+      "open_world": true,
+      "required_permissions": [
+        "portfolio.read",
+        "policy.read",
+        "plan.read",
+        "market.read"
+      ],
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "portfolio_id"
+        ],
+        "properties": {
+          "portfolio_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "symbols": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "type": "string",
+              "minLength": 6,
+              "maxLength": 6
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "stock-analysis-context-v1"
+    },
+    {
       "name": "get_capabilities",
       "description": "Return installed, ready, and client-usable InvestKitchen capabilities for this instance. 계좌·포트폴리오·Knowledge 조회 전에 실제 사용 가능한 기능을 확인합니다.",
       "read_only": true,

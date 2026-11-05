@@ -17,6 +17,7 @@ from protocol.v1.transport.stdio_rpc import LocalToolRouter, RequestError
 
 
 READ_TOOLS = {
+    "get_stock_analysis_context": None,
     "get_capabilities": None,
     "list_portfolios": None,
     "get_portfolio_state": "portfolio.state",
@@ -150,7 +151,7 @@ class RemoteReadSurface:
         except ValidationError:
             raise ReadSurfaceError("Invalid tool arguments") from None
         arguments = copy.deepcopy(arguments)
-        if name in {"get_portfolio_state", "get_account_state", "get_active_plans", "get_plan_history"}:
+        if name in {"get_portfolio_state", "get_account_state", "get_active_plans", "get_plan_history", "get_stock_analysis_context"}:
             self._check_portfolio(grant, arguments["portfolio_id"])
         elif name == "build_decision_context":
             self._check_context(grant, available, arguments)

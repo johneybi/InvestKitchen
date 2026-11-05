@@ -76,7 +76,7 @@ def required_permissions(tool_name: str, arguments: dict[str, Any], catalog: dic
 
 def portfolio_ids_for_request(tool_name: str, arguments: dict[str, Any]) -> list[str]:
     values: set[str] = set()
-    if tool_name in {"get_portfolio_state", "get_account_state", "get_decision_history", "get_transactions", "get_active_plans", "get_plan_history"}:
+    if tool_name in {"get_portfolio_state", "get_account_state", "get_decision_history", "get_transactions", "get_active_plans", "get_plan_history", "get_stock_analysis_context"}:
         portfolio_id = arguments.get("portfolio_id")
         if portfolio_id:
             values.add(str(portfolio_id))
