@@ -1,0 +1,32 @@
+name: 버그
+description: 합성 또는 비식별 정보로 재현 가능한 문제를 보고합니다.
+title: "fix: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "실제 계좌 정보, 비밀정보, NAS 내부 경로, 원본 로그는 넣지 말고 합성 예시를 사용하세요."
+  - type: textarea
+    id: observed
+    attributes:
+      label: 현재 동작과 영향
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대 동작
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 비식별 재현 방법
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: 수정 완료 조건과 검증 방법
+    validations:
+      required: true

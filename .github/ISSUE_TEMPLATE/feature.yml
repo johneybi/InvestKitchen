@@ -1,0 +1,32 @@
+name: 기능 또는 개선
+description: 제품 변경의 범위와 완료 조건을 정합니다.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "실제 계좌 정보, 비밀정보, NAS 내부 경로, 원본 로그는 넣지 말고 합성 예시를 사용하세요."
+  - type: textarea
+    id: problem
+    attributes:
+      label: 문제와 기대 결과
+      description: 누가 무엇을 할 수 있어야 하나요?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 범위와 제외할 일
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 조건과 검증 방법
+    validations:
+      required: true
+  - type: textarea
+    id: deployment
+    attributes:
+      label: 배포·운영 영향
+      description: 해당되면 사전 점검, rollback, 운영 확인 방법을 적으세요.
