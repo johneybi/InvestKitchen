@@ -32,6 +32,10 @@ from starlette.routing import Route
 from protocol.v1.runtime.reference_composition import build_reference_gateway
 from protocol.v1.security.oauth_resource import JWTTokenVerifier, load_oauth_resource
 from protocol.v1.transport.client_schema import client_tool_schema
+from protocol.v1.transport.client_write_format import (
+    WRITE_CONTRACT_TOOL, decode_write_arguments, get_write_contract,
+    json_write_declaration, write_contract_declaration,
+)
 from protocol.v1.transport.http_diagnostics import TransportDiagnostics, private_transport_diagnostics
 from protocol.v1.transport.mcp_read_surface import READ_TOOLS, ReadSurfaceError, RemoteReadSurface
 from protocol.v1.transport.mcp_confirmed_writes import (
@@ -68,14 +72,35 @@ class NoStoreMiddleware:
                     request_headers = dict(scope.get("headers", []))
                     self.diagnostics.http(scope.get("method", ""),
                         request_headers.get(b"mcp-protocol-version", b"").decode("ascii", errors="replace"),
-                        b"mcp-session-id" in request_headers, message["status"], time.monotonic() - started)
+                        b"mcp-session-id" in request_headers, message["status"], time.monotonic() - started,
+                        has_bearer=request_headers.get(b"authorization", b"").lower().startswith(b"bearer "))
             await send(message)
 
         await self.app(scope, receive, no_cache)
 
 
+class DiagnosticTokenVerifier:
+    """Observe the same validation result without exposing it to the client."""
+
+    def __init__(self, verifier: JWTTokenVerifier, diagnostics: TransportDiagnostics):
+        self.verifier = verifier
+        self.diagnostics = diagnostics
+
+    async def verify_token(self, token: str):
+        access, outcome = self.verifier.verification_result(token)
+        try:
+            self.diagnostics.authorization(outcome)
+        except Exception:
+            # Optional observation must not change an authentication result.
+            pass
+        return access
+
+
 def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWriteSurface | None = None,
-                    diagnostics: TransportDiagnostics | None = None):
+                    diagnostics: TransportDiagnostics | None = None,
+                    write_input_format: str = "object"):
+    if write_input_format not in {"object", "json-string"} or (write_input_format == "json-string" and writes is None):
+        raise ValueError("Invalid HTTP write input format")
     if writes is not None and writes.resource != verifier.config:
         raise ValueError("Read and write OAuth resource bindings must match")
     surface = RemoteReadSurface(gateway, verifier.config)
@@ -86,7 +111,12 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
         token = get_access_token()
         tools = surface.list_tools(token)
         if writes is not None:
-            tools.extend(writes.list_tools(token))
+            write_tools = writes.list_tools(token)
+            if write_input_format == "json-string" and write_tools:
+                tools.extend(json_write_declaration(tool) for tool in write_tools)
+                tools.append(write_contract_declaration({tool["name"] for tool in write_tools}))
+            else:
+                tools.extend(write_tools)
         tools = [{**tool, "inputSchema": client_tool_schema(tool["inputSchema"])} for tool in tools]
         if diagnostics is not None:
             diagnostics.listed(len(tools))
@@ -98,11 +128,26 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
         if diagnostics is not None:
             diagnostics.tool(params.name, "started")
         try:
-            selected = writes if writes is not None and params.name in (WRITE_TOOLS.keys() | APPLY_TOOLS.keys()) else surface
-            value = await anyio.to_thread.run_sync(selected.call_tool, token, params.name, params.arguments or {})
+            def dispatch():
+                arguments = params.arguments or {}
+                if writes is not None and write_input_format == "json-string":
+                    if params.name == WRITE_CONTRACT_TOOL:
+                        return get_write_contract(writes, token, arguments)
+                    if params.name in WRITE_TOOLS:
+                        grant = writes.grant(token)
+                        if params.name not in writes.names(grant):
+                            raise ReadSurfaceError("Unknown or unavailable write tool")
+                        arguments = decode_write_arguments(arguments)
+                selected = writes if writes is not None and params.name in (WRITE_TOOLS.keys() | APPLY_TOOLS.keys()) else surface
+                return selected.call_tool(token, params.name, arguments)
+
+            value = await anyio.to_thread.run_sync(dispatch)
             if params.name == "get_capabilities" and writes is not None:
                 value = {**value, "remote_write_tools": [tool["name"] for tool in writes.list_tools(token)],
                          "write_approval": "separate_authenticated_browser_review"}
+                if write_input_format == "json-string":
+                    value = {**value, "remote_write_input_format": write_input_format,
+                             "remote_write_contract_tool": WRITE_CONTRACT_TOOL}
             is_error = isinstance(value, dict) and value.get("status") in {"blocked", "unavailable", "error"}
             result = CallToolResult(
                 content=[TextContent(type="text", text=json.dumps(value, ensure_ascii=False, separators=(",", ":")))],
@@ -159,7 +204,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             resource_server_url=AnyHttpUrl(verifier.config.resource_url),
             required_scopes=list(verifier.config.required_scopes), validate_token_resource=True,
         ),
-        token_verifier=verifier,
+        token_verifier=DiagnosticTokenVerifier(verifier, diagnostics) if diagnostics is not None else verifier,
         transport_security=TransportSecuritySettings(
             allowed_hosts=[resource.netloc], allowed_origins=[origin],
         ),
@@ -203,6 +248,8 @@ def main() -> int:
                         help="Private approval evidence, separate from source and authoritative stores")
     parser.add_argument("--transport-diagnostics-root", type=Path,
                         help="Optional private directory for bounded method/status events without request data")
+    parser.add_argument("--write-input-format", choices=("object", "json-string"), default="object",
+                        help="Optional flat JSON-string preview declarations; canonical validation and approval are unchanged")
     parser.add_argument("--check-config", action="store_true",
                         help="Validate configured surfaces and stores without listening or applying updates")
     parser.add_argument("--host", choices=("127.0.0.1", "::1"), default="127.0.0.1")
@@ -314,8 +361,9 @@ def main() -> int:
                 args.write_config, args.approval_store_root,
             ) if path is not None)
             diagnostics = private_transport_diagnostics(args.transport_diagnostics_root, protected,
-                set(READ_TOOLS) | set(WRITE_TOOLS) | set(APPLY_TOOLS))
-        app = create_http_app(gateway, verifier, writes=writes, diagnostics=diagnostics)
+                set(READ_TOOLS) | set(WRITE_TOOLS) | set(APPLY_TOOLS) | {WRITE_CONTRACT_TOOL})
+        app = create_http_app(gateway, verifier, writes=writes, diagnostics=diagnostics,
+                              write_input_format=args.write_input_format)
     except (OSError, ValueError, KeyError, TypeError, RuntimeError):
         sys.stderr.write("InvestKitchen HTTP MCP configuration error\n")
         return 2

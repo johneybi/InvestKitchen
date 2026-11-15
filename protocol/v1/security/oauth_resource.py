@@ -105,15 +105,19 @@ class JWTTokenVerifier:
             self.keys[kid] = key
 
     async def verify_token(self, token: str) -> AccessToken | None:
+        return self.verification_result(token)[0]
+
+    def verification_result(self, token: str) -> tuple[AccessToken | None, str]:
+        """Return a fixed private diagnostic category, never token or claim data."""
         if len(token) > 16384:
-            return None
+            return None, "malformed"
         try:
             header = jwt.get_unverified_header(token)
             if header.get("alg") != "RS256" or header.get("crit"):
-                return None
+                return None, "unsupported_header"
             key = self.keys.get(header.get("kid"))
             if key is None:
-                return None
+                return None, "unknown_key"
             claims = jwt.decode(
                 token, key.key, algorithms=["RS256"],
                 issuer=self.config.issuer_url, audience=self.config.resource_url,
@@ -126,24 +130,36 @@ class JWTTokenVerifier:
                 if (not isinstance(raw_scope, list)
                         or any(not isinstance(item, str) or not item or any(ch.isspace() for ch in item)
                                for item in raw_scope)):
-                    return None
+                    return None, "invalid_scope_claim"
                 scopes = raw_scope
             else:
                 if not isinstance(raw_scope, str):
-                    return None
+                    return None, "invalid_scope_claim"
                 scopes = raw_scope.split()
             if (not isinstance(subject, str) or not isinstance(client_id, str)
                     or any(not isinstance(claims[field], int) or isinstance(claims[field], bool)
                            for field in ("iat", "exp"))
                     or self.config.grant_for(subject, client_id) is None):
-                return None
+                return None, "invalid_identity_or_time"
             return AccessToken(
                 token=token, subject=subject, client_id=client_id,
                 scopes=scopes, expires_at=claims["exp"],
                 resource=self.config.resource_url, claims={"iss": claims["iss"]},
-            )
+            ), "accepted"
+        except jwt.ExpiredSignatureError:
+            return None, "expired"
+        except jwt.ImmatureSignatureError:
+            return None, "not_yet_valid"
+        except jwt.InvalidAudienceError:
+            return None, "wrong_audience"
+        except jwt.InvalidIssuerError:
+            return None, "wrong_issuer"
+        except jwt.InvalidSignatureError:
+            return None, "invalid_signature"
+        except jwt.MissingRequiredClaimError:
+            return None, "missing_claim"
         except (jwt.PyJWTError, ValueError, TypeError):
-            return None
+            return None, "malformed"
 
 
 def load_oauth_resource(config_path: Path, jwks_path: Path) -> JWTTokenVerifier:
