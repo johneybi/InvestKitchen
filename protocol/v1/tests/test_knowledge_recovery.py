@@ -140,7 +140,8 @@ def test_http_approval_lost_apply_response_and_stdio_readback(setup, signing_key
             if "update_json" in schema["properties"] else {"update": request})
     review = _call(client, headers, "preview_knowledge_update", args)["structuredContent"]
     assert review["approval_requirement"] == {"method": "separate_authenticated_browser_review",
-                                               "approval_url_required": True, "model_may_approve": False}
+                                               "approval_url_required": True, "model_may_approve": False,
+                                               "on_approval": "await_client_apply"}
     assert review["operation_id"] and review["expires_at"]
     apply_args = {k: review[k] for k in ("preview_id", "confirmation")}
     assert _call(client, headers, "apply_knowledge_update", apply_args)["isError"]

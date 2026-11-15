@@ -34,7 +34,7 @@ def test_flat_discovery_contract_and_capabilities_follow_existing_grant(setup, s
         "preview_knowledge_update", "preview_portfolio_update"]
     assert contract["annotations"]["readOnlyHint"] is True
     schema = tools["preview_knowledge_update"]["inputSchema"]
-    assert set(schema["properties"]) == {"update_json", "expected_payload_digest"}
+    assert set(schema["properties"]) == {"update_json", "expected_payload_digest", "target_session_date"}
     assert all(field["type"] == "string" for field in schema["properties"].values())
     assert schema["required"] == ["update_json"] and schema["additionalProperties"] is False
     result = _call(client, headers, "get_write_contract", {"preview_tool": "preview_knowledge_update"})["structuredContent"]

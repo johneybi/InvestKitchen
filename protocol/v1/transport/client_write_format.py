@@ -36,6 +36,9 @@ def json_write_declaration(tool: dict[str, Any]) -> dict[str, Any]:
         },
         "required": ["update_json"], "additionalProperties": False,
     }
+    if "target_session_date" in tool["inputSchema"].get("properties", {}):
+        result["inputSchema"]["properties"]["target_session_date"] = copy.deepcopy(
+            tool["inputSchema"]["properties"]["target_session_date"])
     return result
 
 
@@ -63,7 +66,7 @@ def get_write_contract(writes, token, arguments: dict[str, Any]) -> dict[str, An
     wrapped = "update" in tool["inputSchema"].get("properties", {})
     return {"status": "ok", "preview_tool": name, "input_format": "json-string" if wrapped else "object",
             "canonical_input_schema": tool["inputSchema"],
-            "submission": ("Construct an update object conforming to canonical_input_schema.properties.update and serialize that update into update_json, not the schema itself. Do not populate omitted optional fields or replace empty objects." if wrapped else "Submit arguments matching canonical_input_schema directly; this tool does not use update_json."),
+            "submission": ("Construct an update object conforming to canonical_input_schema.properties.update and serialize that update into update_json, not the schema itself. Do not populate omitted optional fields or replace empty objects. If exposed, target_session_date is a separate submission argument for requested session publication, never a field inside update_json." if wrapped else "Submit arguments matching canonical_input_schema directly; this tool does not use update_json."),
             "digest_encoding": "SHA-256 of UTF-8 JSON with sorted object keys, no insignificant whitespace, and unescaped Unicode (InvestKitchen canonical digest).",
             "approval": "separate_authenticated_browser_review"}
 
@@ -84,7 +87,7 @@ def _reject_constant(value):
 def decode_write_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(arguments, dict) or "update_json" not in arguments:
         raise ReadSurfaceError("JSON-string preview input required; refresh tool definitions and use get_write_contract")
-    if set(arguments) - {"update_json", "expected_payload_digest"}:
+    if set(arguments) - {"update_json", "expected_payload_digest", "target_session_date"}:
         raise ReadSurfaceError("Invalid tool arguments")
     raw = arguments["update_json"]
     expected = arguments.get("expected_payload_digest")
@@ -103,4 +106,7 @@ def decode_write_arguments(arguments: dict[str, Any]) -> dict[str, Any]:
         raise ReadSurfaceError("Invalid tool arguments") from None
     if expected is not None and not hmac.compare_digest(actual, expected):
         raise ReadSurfaceError("Update payload digest mismatch")
-    return {"update": update}
+    result = {"update": update}
+    if "target_session_date" in arguments:
+        result["target_session_date"] = arguments["target_session_date"]
+    return result
