@@ -40,3 +40,5 @@ namespaces = true
 "protocol.v1.session_authority" = ["*.md"]
 "protocol.v1.session_authority.schemas" = ["*.json"]
 "protocol.v1.transport" = ["*.json"]
+
+"protocol.v1.workflows" = ["sources.json", "sources/*.md"]

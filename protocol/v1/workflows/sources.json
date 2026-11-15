@@ -1,0 +1,34 @@
+{
+  "stock_analysis": {
+    "filename": "04_Stock_Analysis_Protocol.md",
+    "version": "2026-11-05",
+    "sha256": "85d76e00ab04cb8e2891b223aad57c68e5d9a12750be924ccc44e0ee202cd064",
+    "upstream_commit": "7f3e3b435ce55c27148d6a22c8b848c717c854a6",
+    "upstream_path": "docs/chatgpt-project/04_Stock_Analysis_Protocol.md"
+  },
+  "decision_reflection": {
+    "filename": "05_Decision_Reflection_Protocol.md",
+    "version": "2026-11-05",
+    "sha256": "7e97e6188cb757a0600fff29d3946fc61604e42729b66a5d0619038811306ca2",
+    "upstream_commit": "7f3e3b435ce55c27148d6a22c8b848c717c854a6",
+    "upstream_path": "docs/chatgpt-project/05_Decision_Reflection_Protocol.md"
+  },
+  "operating_contract": {
+    "filename": "Operating_Contract.ko.md",
+    "version": "2026-11-15",
+    "sha256": "af082c4b189be5810c5bab8f81b5bcc8d57609d789d6fd7259480eeb5b83eefb",
+    "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
+  },
+  "strategy_board": {
+    "filename": "Strategy_Board.ko.md",
+    "version": "2026-11-15",
+    "sha256": "969bdb65c974fca4f80a374be8f06e397dd52317e18a307b9b33579a8053bc4f",
+    "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
+  },
+  "presentation": {
+    "filename": "Presentation_Principles.ko.md",
+    "version": "2026-11-15",
+    "sha256": "0bc2cce50727a95f569648bc3d5f6642322ae42df4f809c25a2a8a3e506098d0",
+    "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
+  }
+}

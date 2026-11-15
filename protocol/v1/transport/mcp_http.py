@@ -182,6 +182,8 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             "Available tools and access depend on server-side grants."
         ),
         instructions=(
+            "When available, first read get_workflow_protocol for the requested analysis, board, registration, briefing or reflection method. "
+            "It delivers methodology, not current evidence, write authority or proof of completed work. "
             "Use this app for saved account, holdings, cash and portfolio questions, including "
             "내 계좌, 토스 계좌, ISA and IRP. Discover the authorized scope with list_portfolios, "
             "then call get_portfolio_state for each requested portfolio; IDs alone are not account details. "

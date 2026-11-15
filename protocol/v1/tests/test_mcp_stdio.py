@@ -121,6 +121,7 @@ def test_mcp_tools_list_is_deterministic_read_only_and_runtime_filtered() -> Non
     names = [tool["name"] for tool in tools]
     assert names == [
         "get_capabilities",
+        "get_workflow_protocol",
         "list_portfolios",
         "get_portfolio_state",
         "get_current_knowledge",
