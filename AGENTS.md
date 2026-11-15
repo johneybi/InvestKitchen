@@ -20,3 +20,17 @@
   backup separation.
 - Do not rename operational `trademind-*` compatibility identifiers as part of an
   unrelated feature. Namespace migration requires its own rollback-safe change.
+
+## Client instructions and skill maintenance
+
+- Before changing client-facing tool behavior, workflow methods, approval flows,
+  project instructions, or product skills, read and apply
+  `skills/investkitchen-instruction-dev/SKILL.md` and its linked development guide.
+  This is developer guidance, not a skill to upload to an investment chat.
+- Treat server behavior, shared instructions, both client delivery profiles, and
+  observable evaluation cases as one change contract. Record unaffected surfaces
+  with a reason instead of editing them mechanically.
+- Maintain canonical sources and rule ownership. Do not fix only a live prompt or
+  generated package; return an authorized live correction to the product source.
+- Record source version, installed version, validation, and operational results
+  separately. A skill file or passing parser check does not prove client behavior.
