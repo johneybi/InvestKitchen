@@ -15,20 +15,20 @@
   },
   "operating_contract": {
     "filename": "Operating_Contract.ko.md",
-    "version": "2026-11-15.2",
-    "sha256": "c65b5196dbb045325e187eabc35cc417c6dbc54f16505f1ae8b027ffeb238834",
+    "version": "2026-11-16.1",
+    "sha256": "1509f28334cbc17a9a3e62341b57c2b67b9df25c0561084f66003bf0836ed432",
     "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
   },
   "strategy_board": {
     "filename": "Strategy_Board.ko.md",
-    "version": "2026-11-15",
-    "sha256": "969bdb65c974fca4f80a374be8f06e397dd52317e18a307b9b33579a8053bc4f",
+    "version": "2026-11-16.1",
+    "sha256": "762edb850c19feb251c6df8e7725d52f758fdd32c64d10e3ae587f02999f1b94",
     "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
   },
   "presentation": {
     "filename": "Presentation_Principles.ko.md",
-    "version": "2026-11-15",
-    "sha256": "0bc2cce50727a95f569648bc3d5f6642322ae42df4f809c25a2a8a3e506098d0",
+    "version": "2026-11-16.1",
+    "sha256": "ede2d219f25d3a593f1870f1a44a4ae3843391c5c89a5a5153a2fb9c860611ea",
     "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
   }
 }
