@@ -13,7 +13,7 @@ from protocol.v1.transport.stdio_rpc import LocalToolRouter, RequestError
 @pytest.mark.parametrize('workflow', WORKFLOW_IDS)
 def test_delivery_is_versioned_methodology_not_execution(workflow):
     value = get_workflow_protocol(workflow)
-    assert value['protocol_version'] == '2026-11-15.1'
+    assert value['protocol_version'] == '2026-11-15.2'
     assert value['authority'] == 'methodology_only'
     for field in ('workflow_executed', 'state_changed', 'model_compliance_verified'):
         assert value[field] is False
@@ -22,7 +22,7 @@ def test_delivery_is_versioned_methodology_not_execution(workflow):
     assert len(value['source_coverage']['not_migrated']) == 3
     for document in value['documents']:
         assert hashlib.sha256(document['content'].encode()).hexdigest() == document['sha256']
-        assert document['version'] in {'2026-11-05', '2026-11-15'}
+        assert document['version'] in {'2026-11-05', '2026-11-15', '2026-11-15.2'}
     # The return is independent per call, so one client cannot corrupt later guidance.
     value['common_rules'].clear()
     assert get_workflow_protocol(workflow)['common_rules']
@@ -80,7 +80,8 @@ def test_important_project_behaviors_survive_source_delivery():
     assert '세션 ID 또는 초안은 영구 회고 저장의 증거가 아니다' in reflection
     registration = get_workflow_protocol('knowledge_registration')
     assert any('보관 실패' in item for item in registration['steps'])
-    assert any('서버가 요구하는 독립 NAS' in item for item in registration['common_rules'])
+    assert any('approval_requirement' in item for item in registration['common_rules'])
+    assert 'get_knowledge_generation' in registration['tool_hints']
 
 
 def test_board_and_confirmation_adaptations_are_packaged_without_private_originals():

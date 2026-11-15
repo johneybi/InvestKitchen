@@ -294,7 +294,10 @@ class ConfirmedWriteSurface:
                     "state": "awaiting_approval", "browser_session": None,
                 }
                 return {**result, "approval_url": self.origin + "/approve/" + ticket,
-                        "approval_state": "awaiting_authenticated_browser_approval"}
+                        "approval_state": "awaiting_authenticated_browser_approval",
+                        "approval_requirement": {"method": "separate_authenticated_browser_review",
+                                                 "approval_url_required": True,
+                                                 "model_may_approve": False}}
             pending = next((p for p in self.pending.values() if p["identity"] == grant.identity
                             and p["preview_id"] == arguments["preview_id"] and p["apply"] == name), None)
             if pending is None:

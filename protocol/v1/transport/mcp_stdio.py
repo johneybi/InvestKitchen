@@ -60,6 +60,7 @@ _TOOL_CAPABILITY = {
     "preview_plan_update": None,
     "apply_plan_update": None,
     "get_current_knowledge": "knowledge.current",
+    "get_knowledge_generation": None,
     "search_knowledge": "knowledge.search",
     "get_market_quote": "market.quote",
     "get_market_ohlcv": "market.ohlcv",

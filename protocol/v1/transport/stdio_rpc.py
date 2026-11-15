@@ -128,6 +128,8 @@ class LocalToolRouter:
         }
 
     def _runtime_available(self, name: str) -> bool:
+        if name == "get_knowledge_generation":
+            return self.gateway.knowledge_generation_reader is not None
         if name == "get_account_state":
             return self.gateway.account_state_reader is not None
         if name == "get_plan_history":
@@ -193,6 +195,8 @@ class LocalToolRouter:
             return self.gateway.apply_plan_update(arguments["preview_id"], arguments["confirmation"])
         if name == "get_current_knowledge":
             return self.gateway.get_current_knowledge(max_outlook=arguments.get("max_outlook", 20))
+        if name == "get_knowledge_generation":
+            return self.gateway.get_knowledge_generation(**arguments)
         if name == "search_knowledge":
             return self.gateway.search_knowledge(arguments["query"], limit=arguments.get("limit", 20))
         if name == "preview_knowledge_update":
