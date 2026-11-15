@@ -166,6 +166,8 @@ class _ConnectorWriteCoordinator:
             return deepcopy(pending["preview"]["preview"])
         if pending["kind"] == "portfolio":
             return deepcopy(pending["candidate"])
+        if pending["kind"] in {"policy_update", "opinion_weighting_update"}:
+            return deepcopy(pending["preview"])
         raise ConnectorWriteRejected("unsupported_review_kind")
 
     def discard(self, preview_id: str) -> None:
