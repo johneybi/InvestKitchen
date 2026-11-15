@@ -11,7 +11,7 @@ from importlib.resources import files
 import json
 
 
-PROTOCOL_VERSION = "2026-11-15.2"
+PROTOCOL_VERSION = "2026-11-16.1"
 WORKFLOW_IDS = (
     "overview", "stock_analysis", "strategy_board", "knowledge_registration",
     "briefing", "reflection_pre", "reflection_post", "portfolio_update", "policy_plan_update",
@@ -26,13 +26,16 @@ COMMON = [
     "분석·보드·복기 초안은 기본적으로 일시적이다. 저장 요청은 각 도메인의 미리보기→독립 승인→정확한 적용→권위 있는 재조회 절차를 따른다.",
     "실제 preview의 approval_requirement와 도구 계약을 따른다. 브라우저 승인이 요구되면 반환된 approval_url만 안내하고, 신뢰된 connector 확인 경로는 해당 계약대로 사용자 확인을 받는다. 모델이 스스로 승인하거나 링크를 만들어서는 안 된다.",
     "쓰기 응답 유실은 실패나 재시도 허가가 아니다. preview의 recovery가 제공되면 원래 generation_id와 payload_digest로 정본을 조회한다. not_observed·해시 불일치·조회 오류에서는 불확실/충돌을 유지하고 무조건 다시 적용하지 않는다.",
+    "복합 요청은 관련 방법론을 조합한다. 질문 범위에 맞는 조회·분석·PRE/POST·기록을 연결하며 하나의 workflow로 나머지 의도를 버리지 않는다.",
+    "표현 형식은 고정하지 않는다. 지원되는 시각화가 비교·가정 탐색에 도움이 되면 사용하고, 관측 스냅샷·시뮬레이션·실제 상태 변경을 구분한다.",
+    "적용 성공 뒤 재조회만 실패하면 적용됨·검증 대기다. 연결 오류·인증 거부·기능 미노출·자료 부재를 구별하고 성공한 부분을 실패로 되돌려 설명하지 않는다.",
 ]
 
 WORKFLOWS = {
     "overview": {
         "purpose": "요청에 필요한 방법론과 작업 경로를 선택한다.",
         "documents": [],
-        "steps": ["아래 workflow_catalog에서 요청에 맞는 workflow를 선택해 다시 읽는다.",
+        "steps": ["아래 workflow_catalog에서 요청에 필요한 하나 이상의 workflow를 읽고 결합한다.",
                   "단순 사실 질문에는 불필요한 전체 계좌 분석이나 감정 설문을 강요하지 않는다."],
         "output_requirements": ["실제 도구·출처 가용성과 미확인 상태를 구분"],
         "tool_hints": ["get_capabilities"],
@@ -55,7 +58,7 @@ WORKFLOWS = {
                   "기준 시장과 시각을 명시해 돌파·눌림·불발 시나리오를 나눈다.",
                   "계좌별 투입·유지·관찰·불가와 유보 현금을 표시한다. 가장 큰 가용 현금 계좌도 빠뜨리지 않는다.",
                   "총현금과 정책상 전술 예산·주문 가능액을 구분한다. 불완전한 입력으로 정확한 수량을 만들지 않는다."],
-        "output_requirements": ["시간대 × 트리거 × 계좌 × 행동 표",
+        "output_requirements": ["관련 시간대·트리거·계좌·행동의 관계를 읽을 수 있는 표현 (고정 표 형식 아님)",
                                 "계좌·대상·금액/수량 또는 미확인 이유·확인 조건·무효화·불발 시 대응",
                                 "계좌별 예산·이미 사용한 예산(확인된 경우)·유보 현금"],
         "tool_hints": ["get_portfolio_state", "get_account_state", "get_current_policy",

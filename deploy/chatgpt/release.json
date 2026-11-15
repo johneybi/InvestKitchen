@@ -1,0 +1,39 @@
+{
+  "version": "2026-11-16.1",
+  "methodology_version": "2026-11-16.1",
+  "status": "candidate",
+  "shared_source": "client-instructions/core.ko.md",
+  "profiles": {
+    "chatgpt": "client-instructions/chatgpt.ko.md",
+    "gemini": "client-instructions/gemini.ko.md"
+  },
+  "host_installation_verified": false,
+  "web_behavior_verified": false,
+  "source_sha256": {
+    "client-instructions/core.ko.md": "b6d7ff3a1a93e5bc34cfbc9998411d7498932cbfbae72cb26a32ad2ebd4a629d",
+    "client-instructions/chatgpt.ko.md": "60d9c04564350eae6574754f7d14413b790583480e18b85df517c63dc8a3beef",
+    "client-instructions/gemini.ko.md": "c604b347325b8c9e77ba606cfcf6fd74fffe57b335aeef36e8b281e2d183af28",
+    "protocol/v1/workflows/sources/Operating_Contract.ko.md": "1509f28334cbc17a9a3e62341b57c2b67b9df25c0561084f66003bf0836ed432",
+    "protocol/v1/workflows/sources/Strategy_Board.ko.md": "762edb850c19feb251c6df8e7725d52f758fdd32c64d10e3ae587f02999f1b94",
+    "protocol/v1/workflows/sources/Presentation_Principles.ko.md": "ede2d219f25d3a593f1870f1a44a4ae3843391c5c89a5a5153a2fb9c860611ea",
+    "protocol/v1/workflows/sources/04_Stock_Analysis_Protocol.md": "85d76e00ab04cb8e2891b223aad57c68e5d9a12750be924ccc44e0ee202cd064",
+    "protocol/v1/workflows/sources/05_Decision_Reflection_Protocol.md": "7e97e6188cb757a0600fff29d3946fc61604e42729b66a5d0619038811306ca2",
+    "protocol/v1/workflows/sources.json": "6942bd4017c3ec08c75de8497b420c95866befc5294aac7eee272347fe160271",
+    "client-instructions/release.json": "cbd028efb05ecd289baa32dcc8b62e05d4560696fa6e2b30feced540d241aec7"
+  },
+  "artifact_sha256": {
+    "deploy/chatgpt/project-instructions.ko.md": "407734210ee98d9613bc3602f000c48fd761440785ea563b06724e43deb04077",
+    "deploy/chatgpt/project-sources/04_Stock_Analysis_Protocol.md": "85d76e00ab04cb8e2891b223aad57c68e5d9a12750be924ccc44e0ee202cd064",
+    "deploy/chatgpt/project-sources/05_Decision_Reflection_Protocol.md": "7e97e6188cb757a0600fff29d3946fc61604e42729b66a5d0619038811306ca2",
+    "deploy/chatgpt/project-sources/Operating_Contract.ko.md": "1509f28334cbc17a9a3e62341b57c2b67b9df25c0561084f66003bf0836ed432",
+    "deploy/chatgpt/project-sources/Presentation_Principles.ko.md": "ede2d219f25d3a593f1870f1a44a4ae3843391c5c89a5a5153a2fb9c860611ea",
+    "deploy/chatgpt/project-sources/Strategy_Board.ko.md": "762edb850c19feb251c6df8e7725d52f758fdd32c64d10e3ae587f02999f1b94",
+    "deploy/gemini/skills/investkitchen/SKILL.md": "f722100ef62d6848e610a9ec46b176c21d13730a9af79af74734e4b258ced5b1",
+    "deploy/gemini/skills/investkitchen/references/04_Stock_Analysis_Protocol.md": "85d76e00ab04cb8e2891b223aad57c68e5d9a12750be924ccc44e0ee202cd064",
+    "deploy/gemini/skills/investkitchen/references/05_Decision_Reflection_Protocol.md": "7e97e6188cb757a0600fff29d3946fc61604e42729b66a5d0619038811306ca2",
+    "deploy/gemini/skills/investkitchen/references/Operating_Contract.ko.md": "1509f28334cbc17a9a3e62341b57c2b67b9df25c0561084f66003bf0836ed432",
+    "deploy/gemini/skills/investkitchen/references/Presentation_Principles.ko.md": "ede2d219f25d3a593f1870f1a44a4ae3843391c5c89a5a5153a2fb9c860611ea",
+    "deploy/gemini/skills/investkitchen/references/Strategy_Board.ko.md": "762edb850c19feb251c6df8e7725d52f758fdd32c64d10e3ae587f02999f1b94"
+  },
+  "installation_note": "Generated candidate; build success does not establish installation or model behavior."
+}

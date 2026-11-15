@@ -1,3 +1,10 @@
+# Current user-instruction delivery
+
+The versioned ChatGPT/Gemini user packages and installation/update policy are in
+[the Korean user operations guide](client-experience.ko.md). The earlier read-only
+skill, named models and English-UI workarounds below are historical trial details,
+not current prerequisites or a claim of complete feature support.
+
 # Gemini client — read-only development profile
 
 Optional advisory Plan create/replace/close uses the existing independent browser approval profile. See [native Plan lifecycle](native-plan-lifecycle.md). Deployment and actual client verification remain separate.

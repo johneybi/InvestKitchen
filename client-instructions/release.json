@@ -1,0 +1,12 @@
+{
+  "version": "2026-11-16.1",
+  "methodology_version": "2026-11-16.1",
+  "status": "candidate",
+  "shared_source": "client-instructions/core.ko.md",
+  "profiles": {
+    "chatgpt": "client-instructions/chatgpt.ko.md",
+    "gemini": "client-instructions/gemini.ko.md"
+  },
+  "host_installation_verified": false,
+  "web_behavior_verified": false
+}
