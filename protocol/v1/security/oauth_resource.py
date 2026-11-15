@@ -19,6 +19,8 @@ READ_SCOPE = "investkitchen.read"
 ReadPermission = Literal[
     "system.capabilities.read", "portfolio.read", "knowledge.read",
     "market.read", "decision.context.build", "plan.read",
+    "openitem.read", "policy.read", "opinion.read", "decision.history.read",
+    "transaction.history.read", "reflection.session.start",
 ]
 
 

@@ -17,7 +17,7 @@ MAX_UPDATE_BYTES = 65536
 
 
 def json_write_declaration(tool: dict[str, Any]) -> dict[str, Any]:
-    if tool["name"] not in WRITE_TOOLS:
+    if tool["name"] not in WRITE_TOOLS or "update" not in tool["inputSchema"].get("properties", {}):
         return tool
     result = copy.deepcopy(tool)
     result["description"] += (
@@ -60,9 +60,10 @@ def get_write_contract(writes, token, arguments: dict[str, Any]) -> dict[str, An
     if name not in WRITE_TOOLS or name not in writes.names(grant):
         raise ReadSurfaceError("Unknown or unavailable write tool")
     tool = next(tool for tool in writes.list_tools(token) if tool["name"] == name)
-    return {"status": "ok", "preview_tool": name, "input_format": "json-string",
+    wrapped = "update" in tool["inputSchema"].get("properties", {})
+    return {"status": "ok", "preview_tool": name, "input_format": "json-string" if wrapped else "object",
             "canonical_input_schema": tool["inputSchema"],
-            "submission": "Construct an update object conforming to canonical_input_schema.properties.update and serialize that update into update_json, not the schema itself. Do not populate omitted optional fields or replace empty objects.",
+            "submission": ("Construct an update object conforming to canonical_input_schema.properties.update and serialize that update into update_json, not the schema itself. Do not populate omitted optional fields or replace empty objects." if wrapped else "Submit arguments matching canonical_input_schema directly; this tool does not use update_json."),
             "digest_encoding": "SHA-256 of UTF-8 JSON with sorted object keys, no insignificant whitespace, and unescaped Unicode (InvestKitchen canonical digest).",
             "approval": "separate_authenticated_browser_review"}
 

@@ -137,7 +137,9 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
                         grant = writes.grant(token)
                         if params.name not in writes.names(grant):
                             raise ReadSurfaceError("Unknown or unavailable write tool")
-                        arguments = decode_write_arguments(arguments)
+                        _, router = writes.backends[grant.identity]
+                        if "update" in router.tools[params.name]["input_schema"].get("properties", {}):
+                            arguments = decode_write_arguments(arguments)
                 selected = writes if writes is not None and params.name in (WRITE_TOOLS.keys() | APPLY_TOOLS.keys()) else surface
                 return selected.call_tool(token, params.name, arguments)
 
