@@ -160,6 +160,9 @@ class LocalToolRouter:
             raise RequestError("invalid_arguments", "Tool arguments must be an object")
         _validate_schema(arguments, tool["input_schema"])
 
+        if name == "get_workflow_protocol":
+            from protocol.v1.workflows.protocols import get_workflow_protocol
+            return get_workflow_protocol(arguments["workflow"])
         if name == "get_capabilities":
             return self.gateway.get_capabilities()
         if name == "list_portfolios":

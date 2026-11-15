@@ -47,6 +47,7 @@ _SERVER_INFO_META = "io.modelcontextprotocol/serverInfo"
 
 _TOOL_CAPABILITY = {
     "get_capabilities": None,
+    "get_workflow_protocol": None,
     "list_portfolios": None,
     "get_portfolio_state": "portfolio.state",
     "get_account_state": "account.state",
@@ -222,6 +223,8 @@ class TradeMindMCPServer:
             "supportedVersions": [MCP_PROTOCOL_VERSION],
             "capabilities": {"tools": {"listChanged": False}},
             "instructions": (
+                "When available, read get_workflow_protocol for the relevant analysis, board, registration, briefing or reflection procedure. "
+                "Protocol retrieval does not execute a workflow or verify compliance. "
                 "For current broker holdings, costs and valuation, use get_account_state when available: "
                 "it refreshes automatically and needs no sync approval. "
                 "InvestKitchen exposes investment context plus explicitly confirmed native Knowledge "

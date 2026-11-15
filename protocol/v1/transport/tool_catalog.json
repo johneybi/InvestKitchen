@@ -15,6 +15,38 @@
       "output_contract": "capability-discovery.schema.json"
     },
     {
+      "name": "get_workflow_protocol",
+      "description": "Read the versioned InvestKitchen methodology and task procedure before stock analysis, strategy boards, Knowledge registration, briefings or PRE/POST reflection. 인베스트키친 공통 분석 방법·프로젝트 지침을 읽습니다. Returns known source coverage and required evidence/output/approval boundaries, not current account facts or proof of completed work. Tool hints do not establish availability or grant permissions.",
+      "read_only": true,
+      "required_permissions": [
+        "system.capabilities.read"
+      ],
+      "input_schema": {
+        "type": "object",
+        "required": [
+          "workflow"
+        ],
+        "properties": {
+          "workflow": {
+            "type": "string",
+            "enum": [
+              "overview",
+              "stock_analysis",
+              "strategy_board",
+              "knowledge_registration",
+              "briefing",
+              "reflection_pre",
+              "reflection_post",
+              "portfolio_update",
+              "policy_plan_update"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_contract": "workflow-protocol"
+    },
+    {
       "name": "list_portfolios",
       "description": "Discover the authorized InvestKitchen portfolio IDs before reading saved accounts, holdings or cash. 내 계좌·전체 포트폴리오 조회의 허용 범위를 찾습니다. IDs are not account details: call get_portfolio_state for each requested ID. Never guess a portfolio_id.",
       "read_only": true,

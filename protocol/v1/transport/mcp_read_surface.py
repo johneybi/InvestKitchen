@@ -18,6 +18,7 @@ from protocol.v1.transport.stdio_rpc import LocalToolRouter, RequestError
 
 READ_TOOLS = {
     "get_capabilities": None,
+    "get_workflow_protocol": None,
     "list_portfolios": None,
     "get_portfolio_state": "portfolio.state",
     "get_account_state": "account.state",
