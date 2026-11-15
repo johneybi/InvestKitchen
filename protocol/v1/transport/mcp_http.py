@@ -146,6 +146,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             value = await anyio.to_thread.run_sync(dispatch)
             if params.name == "get_capabilities" and writes is not None:
                 value = {**value, "remote_write_tools": [tool["name"] for tool in writes.list_tools(token)],
+                         "remote_write_authorization": writes.authorization_status(token),
                          "write_approval": "separate_authenticated_browser_review"}
                 if write_input_format == "json-string":
                     value = {**value, "remote_write_input_format": write_input_format,

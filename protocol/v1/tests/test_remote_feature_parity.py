@@ -126,8 +126,12 @@ def test_added_writes_require_browser_approval_and_readback(tmp_path, signing_ke
         result = _call(client, headers, 'apply_' + kind + '_update', apply_args)['structuredContent']
         assert result['status'] == 'applied' and result['read_back']['matches']
         assert _call(client, headers, 'apply_' + kind + '_update', apply_args)['isError']
+        assert writes.authorization_status(token())['status'] == 'oauth_scope_missing'
+        access = token().model_copy(update={'scopes': [READ_SCOPE, 'investkitchen.write'], 'expires_at': 4102445100})
+        assert writes.authorization_status(access)['status'] == 'available'
         writes.clock = lambda: 4102444801  # Grant expired: hide all write tools.
-        assert writes.list_tools(token().model_copy(update={'scopes': [READ_SCOPE, 'investkitchen.write']})) == []
+        assert writes.list_tools(access) == []
+        assert writes.authorization_status(access)['status'] == 'grant_expired'
 
 
 def test_context_policy_and_history_scope_cannot_bypass_direct_scope():

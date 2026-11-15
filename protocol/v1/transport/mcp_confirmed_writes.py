@@ -191,6 +191,24 @@ class ConfirmedWriteSurface:
                 return grant
         raise ReadSurfaceError("Write authorization required")
 
+    def authorization_status(self, token: AccessToken | None) -> dict[str, Any]:
+        """Safe status for the already authenticated reader's own write grant."""
+        if (token is None or token.resource != self.resource.resource_url
+                or READ_SCOPE not in token.scopes or token.expires_at is None
+                or token.expires_at <= self.clock()
+                or self.resource.grant_for(token.subject, token.client_id) is None):
+            raise ReadSurfaceError("Authentication required")
+        grant = next((g for g in self.config.grants
+                      if g.identity == (token.subject, token.client_id)), None)
+        if grant is None:
+            return {"status": "not_granted"}
+        if grant.expires_at.timestamp() <= self.clock():
+            return {"status": "grant_expired", "expires_at": grant.expires_at.isoformat()}
+        if WRITE_SCOPE not in token.scopes:
+            return {"status": "oauth_scope_missing", "required_scope": WRITE_SCOPE}
+        return {"status": "available" if self.names(grant) else "backend_unavailable",
+                "expires_at": grant.expires_at.isoformat()}
+
     def names(self, grant: WriteGrant) -> set[str]:
         _, router = self.backends[grant.identity]
         names = set()
