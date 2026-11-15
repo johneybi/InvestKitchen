@@ -320,8 +320,11 @@ class ReadOnlyGatewayFacade:
     def search_knowledge(self, query: str, *, limit: int = 20) -> dict[str, Any]:
         return self._invoke("knowledge.search", {"query": query, "limit": limit})
 
-    def preview_knowledge_update(self, update: dict[str, Any]) -> dict[str, Any]:
-        return self._invoke_connector("preview_knowledge_update", {"update": update})
+    def preview_knowledge_update(self, update: dict[str, Any], *, target_session_date: str | None = None) -> dict[str, Any]:
+        arguments = {"update": update}
+        if target_session_date is not None:
+            arguments["target_session_date"] = target_session_date
+        return self._invoke_connector("preview_knowledge_update", arguments)
 
     def apply_knowledge_update(self, preview_id: str, confirmation: str) -> dict[str, Any]:
         return self._invoke_connector(

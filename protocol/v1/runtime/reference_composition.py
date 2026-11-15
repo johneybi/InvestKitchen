@@ -35,6 +35,7 @@ from protocol.v1.runtime.native_knowledge_store import (
     apply_knowledge_commit,
     build_knowledge_preview,
 )
+from protocol.v1.runtime.knowledge_session_dates import review_session_dates
 from protocol.v1.runtime.portfolio_checkpoint import (
     PortfolioCheckpointStore,
     project_from_latest_checkpoint_through_cursor,
@@ -201,6 +202,7 @@ class _ConnectorWriteCoordinator:
             base_generation_id=self.native_knowledge.latest_generation_id(),
         )
         mutation = preview["preview"]
+        session_registration = review_session_dates(mutation["canonical_payload"], payload.get("target_session_date"))
         preview_id = str(mutation["preview_id"])
         confirmation = f"APPROVE KNOWLEDGE UPDATE {str(mutation['payload_digest'])[:12]}"
         self._register(preview_id, {
@@ -220,6 +222,7 @@ class _ConnectorWriteCoordinator:
             "evidence_count": len(request.get("evidence") or []),
             "claim_count": len(request.get("claims") or []),
             "current_state_fields": sorted((request.get("current_state") or {}).keys()),
+            "session_registration": session_registration,
             "confirmation": confirmation,
             "approval_requirement": {"method": "trusted_connector_confirmation",
                                      "approval_url_required": False,

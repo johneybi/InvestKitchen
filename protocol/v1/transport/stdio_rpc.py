@@ -200,7 +200,7 @@ class LocalToolRouter:
         if name == "search_knowledge":
             return self.gateway.search_knowledge(arguments["query"], limit=arguments.get("limit", 20))
         if name == "preview_knowledge_update":
-            return self.gateway.preview_knowledge_update(arguments["update"])
+            return self.gateway.preview_knowledge_update(**arguments)
         if name == "apply_knowledge_update":
             return self.gateway.apply_knowledge_update(arguments["preview_id"], arguments["confirmation"])
         if name == "preview_portfolio_update":
