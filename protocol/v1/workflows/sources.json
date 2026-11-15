@@ -15,8 +15,8 @@
   },
   "operating_contract": {
     "filename": "Operating_Contract.ko.md",
-    "version": "2026-11-15",
-    "sha256": "af082c4b189be5810c5bab8f81b5bcc8d57609d789d6fd7259480eeb5b83eefb",
+    "version": "2026-11-15.2",
+    "sha256": "c65b5196dbb045325e187eabc35cc417c6dbc54f16505f1ae8b027ffeb238834",
     "basis": "generic adaptation; private source originals and host-specific instructions are not bundled"
   },
   "strategy_board": {

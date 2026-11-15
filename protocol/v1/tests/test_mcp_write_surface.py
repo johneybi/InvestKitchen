@@ -340,7 +340,8 @@ def test_knowledge_connector_requires_exact_prior_preview_confirmation_and_rejec
     }, request_id="ka")
     assert applied["status"] == "applied"
     assert applied["generation_id"] == "knowledge-generation:2026-09-17-2"
-    assert applied["read_back"] == {"generation_id": "knowledge-generation:2026-09-17-2", "matches": True}
+    assert applied["read_back"] == {"generation_id": "knowledge-generation:2026-09-17-2", "matches": True,
+                                    "payload_digest": preview["payload_digest"], "status": "committed"}
 
     replay = _call(server, "apply_knowledge_update", {
         "preview_id": preview["preview_id"],

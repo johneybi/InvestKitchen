@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
+from copy import deepcopy
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -28,6 +30,7 @@ _TRUTH = {"observed_fact", "attributed_opinion", "estimate", "hypothesis", "cont
 _APPLICABILITY = {"applicable", "conditional", "stale", "expired", "out_of_scope", "unresolved"}
 _CONFIDENCE = {"low", "medium", "high", "unknown"}
 _PRECISION = {"source_exact", "date_only", "session", "inferred", "unknown"}
+MAX_GENERATION_CONTENT_BYTES = 65536
 
 
 class KnowledgeRejected(ValueError):
@@ -335,6 +338,55 @@ class NativeKnowledgeStore:
     def latest_generation_id(self) -> str | None:
         rows = self.read_journal()
         return str(rows[-1]["generation_id"]) if rows else None
+
+    def get_generation(self, generation_id: str, *, expected_payload_digest: str | None = None,
+                       include_content: bool = True) -> dict[str, Any]:
+        """Observe one committed generation, never infer that an absent write failed.
+
+        Return a curated domain projection, not journal rows or approval evidence.
+        No pending-preview state is needed, so this works after process restart.
+        """
+        _identifier(generation_id, "generation_id")
+        if (expected_payload_digest is not None and
+                (not isinstance(expected_payload_digest, str)
+                 or re.fullmatch(r"[0-9a-f]{64}", expected_payload_digest) is None)):
+            raise KnowledgeRejected("expected_payload_digest_invalid")
+        if not isinstance(include_content, bool):
+            raise KnowledgeRejected("include_content_invalid")
+        rows = self.read_journal()
+        row = next((item for item in rows if item["generation_id"] == generation_id), None)
+        result = {
+            "protocol_version": PROTOCOL_VERSION,
+            "status": "ok",
+            "generation_id": generation_id,
+            "observed_at": timepoint(),
+            "store_scope": "native_knowledge",
+            "commit_status": "committed" if row is not None else "not_observed",
+            "payload_digest": row["payload_digest"] if row is not None else None,
+            "expected_payload_matches": (row["payload_digest"] == expected_payload_digest
+                                         if row is not None and expected_payload_digest is not None else None),
+            "committed_at": deepcopy(row["committed_at"]) if row is not None else None,
+            "is_latest": row is not None and rows[-1]["generation_id"] == generation_id,
+            "retry_apply_safe": False,
+            "content": None,
+            "content_status": "not_requested" if not include_content else "not_observed",
+            "max_content_bytes": MAX_GENERATION_CONTENT_BYTES,
+            "verification": {"commit_and_payload_digest": row is not None,
+                             "source_truth_verified": False, "semantic_fidelity_verified": False},
+        }
+        if row is not None and include_content:
+            if len(canonical_json(row["request"]).encode("utf-8")) > MAX_GENERATION_CONTENT_BYTES:
+                result["content_status"] = "omitted_size_limit"
+            else:
+                result["content"] = deepcopy(row["request"])
+                result["content_status"] = "complete"
+        if result["expected_payload_matches"] is False:
+            result["next_action"] = "resolve_payload_conflict_do_not_reapply"
+        elif row is not None:
+            result["next_action"] = "read_record_do_not_reapply"
+        else:
+            result["next_action"] = "recheck_or_reconcile_unknown_outcome_do_not_reapply"
+        return result
 
     def has_generations(self) -> bool:
         return bool(self.read_journal())

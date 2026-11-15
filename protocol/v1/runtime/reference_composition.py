@@ -212,6 +212,8 @@ class _ConnectorWriteCoordinator:
         return {
             "status": "review_required",
             "preview_id": preview_id,
+            "operation_id": mutation["operation_id"],
+            "expires_at": mutation["expires_at"],
             "payload_digest": mutation["payload_digest"],
             "base_generation_id": mutation.get("base_version"),
             "generation_id": request["generation_id"],
@@ -219,6 +221,14 @@ class _ConnectorWriteCoordinator:
             "claim_count": len(request.get("claims") or []),
             "current_state_fields": sorted((request.get("current_state") or {}).keys()),
             "confirmation": confirmation,
+            "approval_requirement": {"method": "trusted_connector_confirmation",
+                                     "approval_url_required": False,
+                                     "model_may_approve": False},
+            "recovery": {"tool": "get_knowledge_generation",
+                         "arguments": {"generation_id": request["generation_id"],
+                                       "expected_payload_digest": mutation["payload_digest"],
+                                       "include_content": False},
+                         "retry_apply_safe": False},
         }
 
     def apply_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -250,16 +260,27 @@ class _ConnectorWriteCoordinator:
         if result.get("replayed") is True:
             raise ConnectorWriteRejected("write_replay_detected")
         generation_id = str(result["generation_id"])
+        try:
+            observed = self.native_knowledge.get_generation(
+                generation_id, expected_payload_digest=result["payload_digest"], include_content=False)
+            read_back = {"generation_id": generation_id, "payload_digest": observed["payload_digest"],
+                         "matches": observed["expected_payload_matches"], "status": observed["commit_status"]}
+        except Exception:
+            # The commit has returned successfully. A read failure must not turn
+            # this into a rejected write or invite a second apply.
+            read_back = {"generation_id": generation_id, "matches": None, "status": "unavailable"}
         return {
             "status": "applied",
             "preview_id": preview_id,
             "generation_id": generation_id,
             "payload_digest": result["payload_digest"],
             "committed_at": result["committed_at"],
-            "read_back": {
-                "generation_id": self.native_knowledge.latest_generation_id(),
-                "matches": self.native_knowledge.latest_generation_id() == generation_id,
-            },
+            "read_back": read_back,
+            "recovery": {"tool": "get_knowledge_generation",
+                         "arguments": {"generation_id": generation_id,
+                                       "expected_payload_digest": result["payload_digest"],
+                                       "include_content": False},
+                         "retry_apply_safe": False},
         }
 
     def preview_portfolio(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1117,4 +1138,5 @@ def build_reference_gateway(
         plan_history_reader=(lambda **kwargs: get_plan_history(plan_store_for(kwargs["portfolio_id"]), **kwargs)) if advisory_plans is not None else None,
         plan_store=advisory_plans,
         account_state_reader=account_read,
+        knowledge_generation_reader=native_knowledge.get_generation if native_knowledge is not None else None,
     )

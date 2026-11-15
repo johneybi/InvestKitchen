@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .capability_registry import get_capabilities, load_instance_manifest
-from .common import PROTOCOL_VERSION, public_reference, timepoint
+from .common import PROTOCOL_VERSION, digest, public_reference, timepoint
 from .context_composer import compose_decision_context
 from .knowledge_legacy import get_current_knowledge, search_knowledge
 from .portfolio_legacy import get_portfolio_state
@@ -154,6 +154,7 @@ class ReadOnlyGatewayFacade:
         plan_history_reader: Callable[..., dict[str, Any]] | None = None,
         plan_store: Any = None,
         account_state_reader: Callable[..., dict[str, Any]] | None = None,
+        knowledge_generation_reader: Callable[..., dict[str, Any]] | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.manifest = load_instance_manifest(manifest) if isinstance(manifest, Path) else manifest
@@ -164,6 +165,7 @@ class ReadOnlyGatewayFacade:
         self.plan_history_reader = plan_history_reader
         self.plan_store = plan_store
         self.account_state_reader = account_state_reader
+        self.knowledge_generation_reader = knowledge_generation_reader
         self.portfolio_ids = sorted({str(value) for value in (portfolio_ids or []) if str(value)})
 
     def _capability_row(self, capability: str) -> dict[str, Any] | None:
@@ -290,6 +292,30 @@ class ReadOnlyGatewayFacade:
 
     def get_current_knowledge(self, *, max_outlook: int = 20) -> dict[str, Any]:
         return self._invoke("knowledge.current", {"max_outlook": max_outlook})
+
+    def get_knowledge_generation(self, generation_id: str, *, expected_payload_digest: str | None = None,
+                                 include_content: bool = True) -> dict[str, Any]:
+        if self.knowledge_generation_reader is None:
+            return {"status": "unavailable", "error_code": "knowledge_generation_unavailable"}
+        try:
+            raw = self.knowledge_generation_reader(generation_id, expected_payload_digest=expected_payload_digest,
+                                                   include_content=include_content)
+            result = _public_data(raw)
+            content = result.get("content")
+            # Never claim a redacted projection is the canonical byte-equivalent payload.
+            if content is not None:
+                from .knowledge_generation import contains_private_locator
+                if contains_private_locator(content):
+                    result.update(content=None, content_status="withheld_private_locator")
+                elif digest(content) != result["payload_digest"]:
+                    result["content_status"] = "public_projection"
+            result["content_digest"] = digest(result["content"]) if result.get("content") is not None else None
+            result["content_matches_committed_payload"] = (
+                result["content_digest"] == result["payload_digest"] if result["content_digest"] else None)
+            return result
+        except Exception:
+            return {"status": "error", "error_code": "knowledge_generation_lookup_failed",
+                    "commit_status": "unknown", "retry_apply_safe": False}
 
     def search_knowledge(self, query: str, *, limit: int = 20) -> dict[str, Any]:
         return self._invoke("knowledge.search", {"query": query, "limit": limit})

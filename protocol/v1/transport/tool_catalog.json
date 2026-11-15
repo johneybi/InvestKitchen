@@ -428,6 +428,37 @@
       "output_contract": "capability-result.schema.json"
     },
     {
+      "name": "get_knowledge_generation",
+      "description": "Read one exact committed native Knowledge generation after apply, a lost response, restart, or a newer update. 지식 등록 결과를 generation_id와 preview의 payload_digest로 대조합니다. Requires knowledge.read, never write authority. Returns bounded content, explicit omission/redaction state, and commit/digest verification only, not source-truth verification. A missing generation does not prove apply failed and never authorizes retry. Use the digest returned by the original preview; do not invent it. No raw audit journals or approval receipts are returned.",
+      "read_only": true,
+      "required_permissions": [
+        "knowledge.read"
+      ],
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "generation_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "expected_payload_digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "include_content": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "generation_id"
+        ],
+        "additionalProperties": false
+      },
+      "output_contract": "knowledge-generation-result"
+    },
+    {
       "name": "search_knowledge",
       "description": "Search canonical Knowledge claims using a bounded query.",
       "read_only": true,

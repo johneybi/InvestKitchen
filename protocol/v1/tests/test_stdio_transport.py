@@ -115,6 +115,7 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
         "preview_plan_update",
         "apply_plan_update",
         "get_current_knowledge",
+        "get_knowledge_generation",
         "search_knowledge",
         "preview_knowledge_update",
         "apply_knowledge_update",

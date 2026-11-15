@@ -32,6 +32,7 @@ READ_TOOLS = {
     "get_active_plans": "plan.active",
     "get_plan_history": None,
     "get_current_knowledge": "knowledge.current",
+    "get_knowledge_generation": None,
     "search_knowledge": "knowledge.search",
     "resolve_krx_securities": None,
     "get_market_quote": "market.quote",
