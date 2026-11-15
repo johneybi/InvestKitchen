@@ -86,6 +86,7 @@ class ConfirmedWriteConfig(BaseModel):
 
     authelia_authz_url: str
     authelia_cookie_name: str = Field(default="authelia_session", pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    approval_mode: Literal["approve_then_apply", "approve_and_apply"] = "approve_then_apply"
     plan_preview_ttl_seconds: int = Field(default=DEFAULT_PLAN_PREVIEW_TTL_SECONDS, strict=True,
                                           ge=60, le=MAX_PLAN_PREVIEW_TTL_SECONDS)
     grants: tuple[WriteGrant, ...] = Field(min_length=1)
@@ -207,6 +208,7 @@ class ConfirmedWriteSurface:
         if WRITE_SCOPE not in token.scopes:
             return {"status": "oauth_scope_missing", "required_scope": WRITE_SCOPE}
         return {"status": "available" if self.names(grant) else "backend_unavailable",
+                "approval_mode": self.config.approval_mode,
                 "expires_at": grant.expires_at.isoformat()}
 
     def names(self, grant: WriteGrant) -> set[str]:
@@ -225,11 +227,14 @@ class ConfirmedWriteSurface:
         except ReadSurfaceError:
             return []
         _, router = self.backends[grant.identity]
+        automatic = self.config.approval_mode == "approve_and_apply"
         return [{"name": name,
                  "description": router.tools[name]["description"] + (
-                     " Open approval_url and review the exact change in the authenticated NAS browser before apply."
+                     (" The user reviews approval_url and clicks approve-and-save; the server applies that exact change."
+                      if automatic else " Open approval_url and review the exact change in the authenticated NAS browser before apply.")
                      if name in WRITE_TOOLS else
-                     " Requires the separate NAS browser approval; confirmation text alone cannot authorize this call."),
+                     (" After browser approve-and-save, this returns the original result without another write. Before approval it is blocked."
+                      if automatic else " Requires the separate NAS browser approval; confirmation text alone cannot authorize this call.")),
                  "inputSchema": copy.deepcopy(router.tools[name]["input_schema"]),
                  "annotations": {"readOnlyHint": name in WRITE_TOOLS,
                                  "destructiveHint": name in APPLY_TOOLS,
@@ -238,7 +243,7 @@ class ConfirmedWriteSurface:
 
     def _prune(self):
         for ticket, pending in list(self.pending.items()):
-            if pending["expires"] <= self.clock():
+            if pending.get("receipt_expires", pending["expires"]) <= self.clock():
                 self.backends[pending["identity"]][0].connector_discard(pending["preview_id"])
                 del self.pending[ticket]
         for sid, session in list(self.sessions.items()):
@@ -274,12 +279,16 @@ class ConfirmedWriteSurface:
                     raise ReadSurfaceError("Exact write review unavailable") from None
                 ticket = secrets.token_urlsafe(32)
                 expires = min(self.clock() + 300, grant.expires_at.timestamp())
-                if name == "preview_plan_update":
+                canonical_expiry_value = None
+                if name in {"preview_plan_update", "preview_knowledge_update"}:
                     try:
-                        canonical_expiry = datetime.fromisoformat(review["candidate"]["expires_at"]["value"].replace("Z", "+00:00"))
+                        canonical_expiry_value = (review["candidate"]["expires_at"] if name == "preview_plan_update"
+                                                  else review["expires_at"])
+                        canonical_expiry = datetime.fromisoformat(canonical_expiry_value["value"].replace("Z", "+00:00"))
                         if canonical_expiry.tzinfo is None:
                             raise ValueError
-                        expires = min(self.clock() + self.config.plan_preview_ttl_seconds,
+                        limit = self.config.plan_preview_ttl_seconds if name == "preview_plan_update" else 300
+                        expires = min(self.clock() + limit,
                                       canonical_expiry.timestamp(), grant.expires_at.timestamp())
                         if expires <= self.clock():
                             raise ValueError
@@ -290,29 +299,71 @@ class ConfirmedWriteSurface:
                     "identity": grant.identity, "preview_id": preview_id,
                     "apply": WRITE_TOOLS[name][1], "confirmation": result["confirmation"],
                     "review": review,
+                    "recovery": copy.deepcopy(result.get("recovery")),
+                    "approval_mode": self.config.approval_mode,
                     "expires": expires,
                     "state": "awaiting_approval", "browser_session": None,
                 }
+                expiry = datetime.fromtimestamp(expires, timezone.utc).isoformat().replace("+00:00", "Z")
                 return {**result, "approval_url": self.origin + "/approve/" + ticket,
+                        "expires_at": {"value": expiry, "precision": "source_exact"},
+                        "approval_expires_at": expiry,
+                        "preview_expires_at": copy.deepcopy(canonical_expiry_value),
                         "approval_state": "awaiting_authenticated_browser_approval",
                         "approval_requirement": {"method": "separate_authenticated_browser_review",
                                                  "approval_url_required": True,
+                                                 "on_approval": ("apply_exact_change" if self.config.approval_mode == "approve_and_apply"
+                                                                 else "await_client_apply"),
                                                  "model_may_approve": False}}
             pending = next((p for p in self.pending.values() if p["identity"] == grant.identity
                             and p["preview_id"] == arguments["preview_id"] and p["apply"] == name), None)
             if pending is None:
                 raise ReadSurfaceError("Preview not found or expired")
-            if pending["state"] != "approved":
-                raise ReadSurfaceError("Authenticated browser approval required")
             if not secrets.compare_digest(arguments["confirmation"], pending["confirmation"]):
                 raise ReadSurfaceError("Confirmation mismatch")
-            pending["state"] = "consumed"
-            try:
-                result = router.call_tool(name, arguments)
-                pending["state"] = "applied" if result.get("status") == "applied" else "failed"
-                return result
-            finally:
+            if pending["approval_mode"] == "approve_and_apply" and "result" in pending:
+                return {**copy.deepcopy(pending["result"]), "retrieved_from_browser_result": True}
+            if pending["state"] != "approved":
+                raise ReadSurfaceError("Authenticated browser approval required")
+            return self._apply_once(pending, gateway, router, arguments)
+
+    def _apply_once(self, pending, gateway, router, arguments):
+        # Caller holds self.lock. Consume before entering the domain writer; an
+        # exception may happen after commit and must never authorize a retry.
+        pending["state"] = "consumed"
+        try:
+            result = router.call_tool(pending["apply"], arguments)
+            pending["state"] = "applied" if result.get("status") == "applied" else "failed"
+        except Exception:
+            pending["state"] = "outcome_unknown"
+            result = {"status": "outcome_unknown", "preview_id": pending["preview_id"],
+                      "retry_apply_safe": False, "recovery": copy.deepcopy(pending["recovery"])}
+            if pending["approval_mode"] != "approve_and_apply":
                 gateway.connector_discard(pending["preview_id"])
+                raise
+        pending["result"] = copy.deepcopy(result)
+        if pending["approval_mode"] == "approve_and_apply":
+            # Retain a bounded receipt, never extended approval authority.
+            pending["receipt_expires"] = self.clock() + 600
+        try:
+            gateway.connector_discard(pending["preview_id"])
+        except Exception:
+            # Authority was consumed before calling the writer. Cleanup failure
+            # cannot turn a known commit into a retryable failure.
+            pending["cleanup_failed"] = True
+        return result
+
+    def _receipt_page(self, pending):
+        result = pending.get("result", {})
+        if pending["state"] == "applied":
+            checked = result.get("read_back", {}).get("matches") is True
+            text = "저장했고 재조회로 확인했습니다." if checked else "저장은 적용됐습니다. 재조회 검증은 아직 완료되지 않았습니다."
+        elif pending["state"] == "outcome_unknown":
+            text = "적용 여부를 확정할 수 없습니다. 같은 변경을 다시 적용하지 말고 정본 조회로 확인하세요."
+        else:
+            text = "변경이 적용되지 않았거나 차단됐습니다. 현재 상태와 결과를 확인하세요."
+        return self._html("<p>" + text + "</p><p>AI에 별도의 적용을 요청할 필요가 없습니다. 결과 확인만 요청할 수 있습니다.</p>"
+                          "<p>미리보기: " + html.escape(pending["preview_id"]) + "</p>")
 
     def _audit(self, ticket: str, pending: dict[str, Any], username: str, decision: str):
         self.audit_root.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -374,6 +425,10 @@ class ConfirmedWriteSurface:
                 form = parse_qs(body.decode(), max_num_fields=4, strict_parsing=True)
             except (ValueError, UnicodeError):
                 return self._html("올바르지 않은 승인 요청입니다.", 400)
+        # Domain writes and audit fsync must not block the ASGI event loop.
+        return await anyio.to_thread.run_sync(self._browser_review_locked, request, username, ticket, form)
+
+    def _browser_review_locked(self, request, username, ticket, form):
         with self.lock:
             self._prune()
             pending = self.pending.get(ticket)
@@ -383,6 +438,8 @@ class ConfirmedWriteSurface:
             if grant.expires_at.timestamp() <= self.clock():
                 return self._html("쓰기 권한이 만료됐습니다.", 403)
             if pending["state"] != "awaiting_approval":
+                if pending["approval_mode"] == "approve_and_apply" and "result" in pending:
+                    return self._receipt_page(pending)
                 return self._html("이 요청은 이미 처리됐습니다. Gemini에서 현재 결과를 확인하세요.", 409)
             sid = request.cookies.get(COOKIE, "")
             session = self.sessions.get(sid)
@@ -402,6 +459,11 @@ class ConfirmedWriteSurface:
                 if decision == "reject":
                     self.backends[pending["identity"]][0].connector_discard(pending["preview_id"])
                     return self._html("변경을 거절했습니다. 저장하지 않았습니다.")
+                if pending["approval_mode"] == "approve_and_apply":
+                    gateway, router = self.backends[pending["identity"]]
+                    self._apply_once(pending, gateway, router, {"preview_id": pending["preview_id"],
+                                                              "confirmation": pending["confirmation"]})
+                    return self._receipt_page(pending)
                 return self._html("<p>변경을 승인했습니다. 아직 저장하지 않았습니다.</p><p>Gemini 대화로 돌아가 이 미리보기의 적용을 요청하세요.</p>")
             if session is None or session["username"] != username:
                 if len(self.sessions) >= self.max_pending * 2:
@@ -416,9 +478,15 @@ class ConfirmedWriteSurface:
                      "apply_account_sync": "계좌 관측 정보 반영",
                      "apply_knowledge_update": "Knowledge 저장·수정", "apply_portfolio_update": "포트폴리오 관측 정보 갱신",
                      "apply_plan_update": "조건부 Plan 생성·교체·종료"}[pending["apply"]]
-            response = self._html('<p>' + label + '</p><p>아래 변경 내용과 대상을 확인하세요. 승인 후 Gemini에서 적용해야 저장됩니다.</p>'
+            automatic = pending["approval_mode"] == "approve_and_apply"
+            notice = ('확인 버튼을 누르면 아래의 정확한 변경을 승인하고 저장합니다.' if automatic
+                      else '승인 후 AI에서 적용해야 저장됩니다.')
+            expiry = datetime.fromtimestamp(pending["expires"], timezone.utc).isoformat().replace("+00:00", "Z")
+            response = self._html('<p>' + label + '</p><p>아래 변경 내용과 대상을 확인하세요. ' + notice + '</p>'
+                                  '<p>실제 승인·적용 기한 (UTC): <time>' + expiry + '</time></p>'
                                   '<pre>' + review + '</pre><form method="post"><input type="hidden" name="csrf" value="'
-                                  + html.escape(session["csrf"], quote=True) + '"><button name="decision" value="approve">이 변경 승인</button>'
+                                  + html.escape(session["csrf"], quote=True) + '"><button name="decision" value="approve">'
+                                  + ('이 변경 승인하고 저장' if automatic else '이 변경 승인') + '</button>'
                                   '<button name="decision" value="reject">거절</button></form>')
             response.set_cookie(COOKIE, sid, max_age=300, secure=True, httponly=True, samesite="strict", path="/")
             return response
