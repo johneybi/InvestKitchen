@@ -117,7 +117,8 @@ def test_personal_baseline_cannot_be_overwritten(tmp_path):
     assert not c.native_knowledge.has_generations()
 
 
-def test_http_json_registration_scopes_and_default_browser_path(tmp_path, signing_key):
+@pytest.mark.parametrize("input_format", ["object", "json-string"])
+def test_http_json_registration_scopes_and_default_browser_path(tmp_path, signing_key, input_format):
     from starlette.testclient import TestClient
     from protocol.v1.tests.test_mcp_http import _config, _jwt, _jwks, _post, HEADERS
     from protocol.v1.tests.test_mcp_confirmed_writes import _write_config
@@ -140,26 +141,33 @@ def test_http_json_registration_scopes_and_default_browser_path(tmp_path, signin
     surface = ConfirmedWriteSurface(resource, config, factory, audit_root=tmp_path/'audit')
     backends['fixture-reader'].portfolio_ids = ['portfolio-alpha','portfolio-beta']
     app = create_http_app(backends['fixture-reader'], JWTTokenVerifier(resource,_jwks(signing_key)),
-                          writes=surface, write_input_format='json-string')
+                          writes=surface, write_input_format=input_format)
     headers = {**HEADERS,'Authorization':'Bearer '+_jwt(signing_key,scope='investkitchen.read investkitchen.write')}
     with TestClient(app, base_url='https://mcp.example.test') as client:
         tools = _post(client,'tools/list',headers=headers).json()['result']['tools']
         tool = next(t for t in tools if t['name']=='register_knowledge')
         assert tool['annotations']['readOnlyHint'] is False
-        assert 'update_json' in tool['inputSchema']['properties']
+        assert set(tool['inputSchema']['required']) == {'title','source_text','statements'}
         def call(name,args,h=headers):
             return _post(client,'tools/call',{'name':name,'arguments':args},headers=h).json()['result']
-        contract=call('get_write_contract',{'preview_tool':'register_knowledge'})['structuredContent']
-        assert contract['approval']=='server_granted_append_only'
-        args={'update_json':json.dumps(update())}
+        if input_format == 'json-string':
+            contract=call('get_write_contract',{'preview_tool':'register_knowledge'})['structuredContent']
+            assert contract['approval']=='server_granted_append_only'
+            assert contract['input_format']=='object'
+        args={'update_json':json.dumps(update())} if input_format=='json-string' else {'update':update()}
         readonly={**headers,'Authorization':'Bearer '+_jwt(signing_key)}
         assert call('register_knowledge',args,readonly)['isError']
         result=call('register_knowledge',args)['structuredContent']
         assert result['status']=='applied' and result['read_back']['matches']
         assert not surface.pending  # no browser ticket or client confirmation
+        from protocol.v1.tests.test_knowledge_note import NOTE
+        note=call('register_knowledge',NOTE)['structuredContent']
+        assert note['status']=='applied' and note['read_back']['matches']
+        assert call('register_knowledge',NOTE)['structuredContent']['status']=='already_registered'
+        assert call('register_knowledge',NOTE,readonly)['isError']
         changed=update('generation:review')
         changed['current_state']={'summary':'state change'}
-        review=call('preview_knowledge_update',{'update_json':json.dumps(changed)})['structuredContent']
+        review=call('preview_knowledge_update',{'update_json':json.dumps(changed)} if input_format=='json-string' else {'update':changed})['structuredContent']
         assert review['approval_url']
         assert call('apply_knowledge_update',{k:review[k] for k in ('preview_id','confirmation')})['isError']
 

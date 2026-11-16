@@ -242,7 +242,27 @@ class _ConnectorWriteCoordinator:
         if self.grant.get("request_policy", {}).get("knowledge_registration") != "append_only":
             raise ConnectorWriteRejected("knowledge_registration_not_granted")
         from protocol.v1.runtime.native_knowledge_store import validate_knowledge_request
-        update = validate_knowledge_request(deepcopy(payload.get("update")))
+        if "update" in payload:
+            if set(payload) - {"update", "target_session_date"}:
+                raise ConnectorWriteRejected("knowledge_input_profiles_mixed")
+            update = validate_knowledge_request(deepcopy(payload["update"]))
+        else:
+            from protocol.v1.runtime.knowledge_note import validate_note, note_generation_id, build_note_update
+            note = validate_note(payload)
+            observed_note = self.native_knowledge.get_generation(note_generation_id(note), include_content=True)
+            if observed_note["commit_status"] == "committed":
+                content = observed_note.get("content") or {}
+                evidence = content.get("evidence", [])
+                if (len(evidence) != 1 or evidence[0].get("content_ref_or_value") != note["source_text"]
+                        or content.get("current_state") != {}):
+                    raise ConnectorWriteRejected("knowledge_generation_conflict")
+                return {"status": "already_registered", "generation_id": note_generation_id(note),
+                        "payload_digest": observed_note["payload_digest"],
+                        "read_back": {"matches": True, "status": "committed"},
+                        "summary_changes_applied": False,
+                        "recovery": {"tool": "get_knowledge_generation", "arguments": {
+                            "generation_id": note_generation_id(note), "include_content": True}}}
+            update = build_note_update(note)
         recovery = {"tool": "get_knowledge_generation", "arguments": {
             "generation_id": update["generation_id"], "expected_payload_digest": digest(update),
             "include_content": False}, "retry_apply_safe": False}

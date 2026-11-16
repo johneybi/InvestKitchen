@@ -181,3 +181,26 @@ def test_opaque_write_still_requires_exact_browser_approval(setup, signing_key, 
 
 
 from protocol.v1.tests.test_mcp_confirmed_writes import setup  # shared synthetic store fixture
+
+@pytest.mark.parametrize('diagnostic_enabled', [False, True])
+def test_transient_auth_outage_is_503_without_challenge_then_recovers(signing_key, monkeypatch, tmp_path, diagnostic_enabled):
+    from protocol.v1.transport.http_diagnostics import private_transport_diagnostics
+    v=verifier(signing_key,monkeypatch)
+    (tmp_path/'diagnostics').mkdir(mode=0o700)
+    diagnostics=private_transport_diagnostics(tmp_path/'diagnostics', [], set()) if diagnostic_enabled else None
+    app=create_http_app(_gateway(),v,diagnostics=diagnostics)
+    with TestClient(app,base_url='https://mcp.example.test') as client:
+        h={**HEADERS,'Authorization':'Bearer '+TOKEN}
+        def fail(token): raise TimeoutError('provider secret must never escape')
+        monkeypatch.setattr(v,'_fetch',fail)
+        response=_post(client,'tools/list',headers=h)
+        assert response.status_code==503
+        assert 'WWW-Authenticate' not in response.headers
+        assert response.headers['Retry-After']=='5'
+        assert response.headers['Cache-Control']=='no-store'
+        assert response.json()=={'error':'authentication_temporarily_unavailable'}
+        monkeypatch.setattr(v,'_fetch',lambda token:claims())
+        assert _post(client,'tools/list',headers=h).status_code==200
+        monkeypatch.setattr(v,'_fetch',lambda token:{'active':False})
+        assert _post(client,'tools/list',headers=h).status_code==401
+        assert _post(client,'tools/list',headers=HEADERS).status_code==401

@@ -1,6 +1,6 @@
 {
-  "version": "2026-11-17.1",
-  "methodology_version": "2026-11-17.1",
+  "version": "2026-11-17.2",
+  "methodology_version": "2026-11-17.2",
   "status": "candidate",
   "shared_source": "client-instructions/core.ko.md",
   "profiles": {

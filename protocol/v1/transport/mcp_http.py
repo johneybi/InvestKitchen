@@ -34,7 +34,7 @@ from protocol.v1.security.oauth_resource import JWTTokenVerifier, load_oauth_res
 from protocol.v1.transport.client_schema import client_tool_schema
 from protocol.v1.transport.client_write_format import (
     WRITE_CONTRACT_TOOL, decode_write_arguments, get_write_contract,
-    json_write_declaration, write_contract_declaration,
+    json_write_declaration, note_write_declaration, write_contract_declaration,
 )
 from protocol.v1.transport.http_diagnostics import TransportDiagnostics, private_transport_diagnostics
 from protocol.v1.transport.mcp_read_surface import READ_TOOLS, ReadSurfaceError, RemoteReadSurface
@@ -76,13 +76,22 @@ class NoStoreMiddleware:
                         has_bearer=request_headers.get(b"authorization", b"").lower().startswith(b"bearer "))
             await send(message)
 
-        await self.app(scope, receive, no_cache)
+        try:
+            await self.app(scope, receive, no_cache)
+        except AuthenticationUnavailable:
+            # Fail closed without telling a client to discard a possibly valid token.
+            await JSONResponse({"error": "authentication_temporarily_unavailable"}, status_code=503,
+                               headers={"Retry-After": "5"})(scope, receive, no_cache)
+
+
+class AuthenticationUnavailable(RuntimeError):
+    """The identity provider could not decide; this is not an invalid token."""
 
 
 class DiagnosticTokenVerifier:
     """Observe the same validation result without exposing it to the client."""
 
-    def __init__(self, verifier: JWTTokenVerifier, diagnostics: TransportDiagnostics):
+    def __init__(self, verifier: JWTTokenVerifier, diagnostics: TransportDiagnostics | None):
         self.verifier = verifier
         self.diagnostics = diagnostics
 
@@ -93,6 +102,8 @@ class DiagnosticTokenVerifier:
         except Exception:
             # Optional observation must not change an authentication result.
             pass
+        if outcome == "introspection_unavailable":
+            raise AuthenticationUnavailable()
         return access
 
 
@@ -116,7 +127,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
                 tools.extend(json_write_declaration(tool) for tool in write_tools)
                 tools.append(write_contract_declaration({tool["name"] for tool in write_tools}))
             else:
-                tools.extend(write_tools)
+                tools.extend(note_write_declaration(tool) for tool in write_tools)
         tools = [{**tool, "inputSchema": client_tool_schema(tool["inputSchema"])} for tool in tools]
         if diagnostics is not None:
             diagnostics.listed(len(tools))
@@ -138,7 +149,8 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
                         if params.name not in writes.names(grant):
                             raise ReadSurfaceError("Unknown or unavailable write tool")
                         _, router = writes.backends[grant.identity]
-                        if "update" in router.tools[params.name]["input_schema"].get("properties", {}):
+                        if ("update" in router.tools[params.name]["input_schema"].get("properties", {})
+                                and (params.name != "register_knowledge" or "update_json" in arguments)):
                             arguments = decode_write_arguments(arguments)
                 selected = writes if writes is not None and params.name in (UPDATE_TOOLS | APPLY_TOOLS.keys()) else surface
                 return selected.call_tool(token, params.name, arguments)
@@ -209,7 +221,7 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             resource_server_url=AnyHttpUrl(verifier.config.resource_url),
             required_scopes=list(verifier.config.required_scopes), validate_token_resource=True,
         ),
-        token_verifier=DiagnosticTokenVerifier(verifier, diagnostics) if diagnostics is not None else verifier,
+        token_verifier=DiagnosticTokenVerifier(verifier, diagnostics),
         transport_security=TransportSecuritySettings(
             allowed_hosts=[resource.netloc], allowed_origins=[origin],
         ),

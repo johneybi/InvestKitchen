@@ -16,7 +16,16 @@ WRITE_CONTRACT_TOOL = "get_write_contract"
 MAX_UPDATE_BYTES = 65536
 
 
+def note_write_declaration(tool: dict[str, Any]) -> dict[str, Any]:
+    if tool["name"] != "register_knowledge":
+        return tool
+    from protocol.v1.runtime.knowledge_note import NOTE_SCHEMA
+    return {**tool, "inputSchema": copy.deepcopy(NOTE_SCHEMA)}
+
+
 def json_write_declaration(tool: dict[str, Any]) -> dict[str, Any]:
+    if tool["name"] == "register_knowledge":
+        return note_write_declaration(tool)
     if tool["name"] not in UPDATE_TOOLS or "update" not in tool["inputSchema"].get("properties", {}):
         return tool
     result = copy.deepcopy(tool)
@@ -63,6 +72,11 @@ def get_write_contract(writes, token, arguments: dict[str, Any]) -> dict[str, An
     if name not in UPDATE_TOOLS or name not in writes.names(grant):
         raise ReadSurfaceError("Unknown or unavailable write tool")
     tool = next(tool for tool in writes.list_tools(token) if tool["name"] == name)
+    if name == "register_knowledge":
+        return {"status": "ok", "preview_tool": name, "input_format": "object",
+                "canonical_input_schema": note_write_declaration(tool)["inputSchema"],
+                "submission": "Submit title, exact source_text and statements directly. Omit unknown optional values. Server creates conservative metadata and IDs. No update_json needed.",
+                "approval": "server_granted_append_only"}
     wrapped = "update" in tool["inputSchema"].get("properties", {})
     return {"status": "ok", "preview_tool": name, "input_format": "json-string" if wrapped else "object",
             "canonical_input_schema": tool["inputSchema"],

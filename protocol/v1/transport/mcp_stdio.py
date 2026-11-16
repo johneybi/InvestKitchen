@@ -161,11 +161,12 @@ def _validate_modern_meta(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _public_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    from protocol.v1.runtime.knowledge_note import NOTE_SCHEMA
     return {
         "name": tool["name"],
         "title": tool.get("title") or tool["name"].replace("_", " ").title(),
         "description": tool["description"],
-        "inputSchema": tool["input_schema"],
+        "inputSchema": NOTE_SCHEMA if tool["name"] == "register_knowledge" else tool["input_schema"],
         "annotations": {
             "readOnlyHint": bool(tool.get("read_only", False)),
             "destructiveHint": bool(tool.get("destructive", False)),
