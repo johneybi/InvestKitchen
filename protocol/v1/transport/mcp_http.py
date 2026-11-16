@@ -87,7 +87,7 @@ class DiagnosticTokenVerifier:
         self.diagnostics = diagnostics
 
     async def verify_token(self, token: str):
-        access, outcome = self.verifier.verification_result(token)
+        access, outcome = await self.verifier.verification_result_async(token)
         try:
             self.diagnostics.authorization(outcome)
         except Exception:
@@ -249,6 +249,8 @@ def main() -> int:
     parser.add_argument("--public-jwks", type=Path, required=True)
     parser.add_argument("--write-config", type=Path,
                         help="Optional expiring grants and loopback browser-authentication binding")
+    parser.add_argument("--token-introspection-config", type=Path,
+                        help="Optional private Authelia loopback introspection profile for opaque access tokens")
     parser.add_argument("--approval-store-root", type=Path,
                         help="Private approval evidence, separate from source and authoritative stores")
     parser.add_argument("--transport-diagnostics-root", type=Path,
@@ -286,7 +288,7 @@ def main() -> int:
     try:
         if not 1 <= args.port <= 65535:
             raise ValueError("Invalid port")
-        verifier = load_oauth_resource(args.oauth_config, args.public_jwks)
+        verifier = load_oauth_resource(args.oauth_config, args.public_jwks, args.token_introspection_config)
         runtime_args = dict(
             runtime_root=args.runtime_root, manifest=args.manifest,
             personal_data_root=args.personal_data_root,
@@ -364,6 +366,7 @@ def main() -> int:
                 args.plan_verification_root, args.historical_decision_root,
                 args.historical_transaction_root, args.portfolio_checkpoint_root,
                 args.write_config, args.approval_store_root,
+                args.token_introspection_config,
             ) if path is not None)
             diagnostics = private_transport_diagnostics(args.transport_diagnostics_root, protected,
                 set(READ_TOOLS) | set(WRITE_TOOLS) | set(APPLY_TOOLS) | {WRITE_CONTRACT_TOOL})

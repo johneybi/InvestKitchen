@@ -326,7 +326,7 @@ Authelia처럼 JWT의 `scp` 배열에 스코프를 넣는 제공자는
 읽기 스코프를 제거하거나 쓰기 스코프를 추가할 수 없다. 추가 OIDC 스코프가 Portfolio
 범위나 Knowledge 권한을 넓히지는 않으며 데이터 접근은 기존 서버 grant가 결정한다.
 
-일반 Google 로그인 ID 토큰, opaque 토큰, 공유 비밀키로 서명한 JWT는 이 검증기의
+일반 Google 로그인 ID 토큰, opaque 토큰, 공유 비밀키로 서명한 JWT는 기본 JWT 검증기의
 계약에 맞지 않는다. 계약이 다른 제공자를 쓰려면 별도 검증 어댑터를 리뷰해야 한다.
 
 [설정 예제](../deploy/gemini/oauth-resource.example.json)를 Git 밖의 운영자 설정
@@ -414,3 +414,35 @@ python3 -m pytest protocol/v1/tests -q
 
 구현 참고: [SDK 리소스 서버 인증](https://py.sdk.modelcontextprotocol.io/run/authorization/),
 [기존 클라이언트 지원](https://py.sdk.modelcontextprotocol.io/run/legacy-clients/).
+
+
+## 선택적 Authelia opaque 접근 토큰 지원
+
+[Google 계정 연결 검증 문서](https://developers.google.com/identity/account-linking/gal-validation-tool)는
+JWT 접근 토큰을 지원하지 않는다고 안내한다. 이 호환성 제약만으로 특정 연결 실패의
+원인을 확정하지 않는다. 직접 토큰 교환에 성공해도 Google 계정 연결 성공은 별도다.
+
+`--token-introspection-config /operator/private/introspection.json`을 지정하면
+Authelia의 `authelia_at_` 접근 토큰을 인증 서버에 조회하여 검증한다. JSON 필드는
+`endpoint`, `client_id`, `client_secret`, 선택적 `timeout_seconds`(기본 5, 최대 10)다.
+설정은 Git 밖의 서비스 사용자 소유 0600 일반 파일과 사적 상위 폴더에 둔다.
+주소는 포트가 명시된 루프백 IP의 HTTP `/api/oidc/introspection`만 허용한다.
+프록시 환경 변수·리다이렉트를 사용하지 않고, 토큰·비밀키·응답을 기록하지 않는다.
+고정 HTTPS issuer에서 Host를 정하고 HTTPS 전달 헤더를 보낸다. 호출자는 이 헤더를
+선택할 수 없으며, 내부 인증 서버의 HTTPS 요구를 보존한다.
+
+발급자는 `access_token_signed_response_alg: none`으로 native opaque 토큰을 발급한다.
+이를 덮어쓰는 접근 토큰 서명 키나 암호화 설정이 없어야 한다. 서명 없는 JWT를 허용하는
+설정이 아니다. ID 토큰 서명, PKCE, issuer/resource, 클라이언트, 스코프, 토큰 수명은
+그대로 유지한다. 설치된 제공자 버전의 설정 검증을 먼저 수행한다.
+
+요청마다 active·발급자·리소스·클라이언트·주체·만료·스코프와 기존 서버 grant를 검사한다.
+인증 서버 장애·잘못된 응답·비활성 토큰은 거부하며 인증 결과를 캐시하지 않는다.
+동시에 최대 두 건을 검증한다. 전환 전 RS256 토큰은 기존 경로로 검증한다.
+쓰기 권한 만료와 사용자 브라우저 승인은 독립적으로 유지하고 ChatGPT stdio는 바꾸지 않는다.
+
+검증기와 발급자 설정을 함께 전환하고 둘 다 복구할 사적 백업을 준비한다. 복구 후
+opaque 토큰은 JWT 전용 검증기에서 거부되므로 기존 앱을 다시 인증한다. 커넥터를
+추가하지 않는다. 실제 연결, 상세 반복 조회, 토큰 갱신, 지식 미리보기, 사용자가 승인한
+저장·재조회는 각각 확인한다. 합성 시험 통과는 Gemini 운영 성공을 뜻하지 않는다.
+도구·업무 규격은 같으므로 스킬과 프로젝트 지침을 재설치할 필요는 없다.

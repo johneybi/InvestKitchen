@@ -280,7 +280,7 @@ requests must contain all of them. The read scope cannot be removed and write
 scopes cannot be added. Additional OIDC scopes do not widen portfolio or Knowledge
 access; the server-owned data grant remains authoritative.
 
-This profile does not accept generic Google sign-in ID tokens, opaque tokens,
+The default JWT profile does not accept generic Google sign-in ID tokens, opaque tokens,
 shared-secret JWTs, arbitrary issuer/audience values or caller-supplied grants.
 Use a provider that can issue the stated access-token contract. A provider that
 does not support this contract needs a separately reviewed verifier adapter.
@@ -378,3 +378,44 @@ Gemini UI availability or a successful production OAuth redirect.
 
 Implementation references: [SDK resource-server authorization](https://py.sdk.modelcontextprotocol.io/run/authorization/)
 and [legacy-client support](https://py.sdk.modelcontextprotocol.io/run/legacy-clients/).
+
+
+## Optional Authelia opaque access-token profile
+
+Google's [Account Linking validation guide](https://developers.google.com/identity/account-linking/gal-validation-tool)
+warns that JWT access tokens are unsupported. This is a compatibility constraint,
+not proof that every account-linking failure has the same cause. A successful
+local token exchange does not prove Google has linked the account.
+
+The optional `--token-introspection-config /operator/private/introspection.json`
+profile accepts native `authelia_at_` access tokens through authenticated Authelia
+introspection. The JSON configuration contains `endpoint`, `client_id`,
+`client_secret`, and optional `timeout_seconds` (default 5; maximum 10). Keep this
+file outside Git, mode 0600, owned by the service account, with private parent
+directories. Only an exact HTTP loopback-IP endpoint ending in
+`/api/oidc/introspection` with an explicit port is accepted. Ambient proxies and
+redirects are disabled; the credential is sent only to that fixed local endpoint.
+The loopback request sets Host from the fixed HTTPS issuer and forwards the HTTPS
+scheme required by the provider; callers cannot choose either header.
+No token, credential, or introspection response is logged or persisted.
+
+Authelia's client uses `access_token_signed_response_alg: none` for native opaque
+tokens, with no overriding access-token signing key or encryption setting.
+This does **not** enable unsigned JWTs. ID-token signing, PKCE, issuer, resource,
+client identity, granted scopes and token lifetimes remain unchanged. Verify the
+installed provider version and validate its configuration before a cutover.
+
+Every opaque request checks active status, exact issuer/resource/client/subject,
+expiry and scopes against the existing server grants. Unavailable, malformed or
+inactive introspection fails closed; there is no authorization cache. At most two
+introspection calls run concurrently. Existing valid RS256 tokens retain the
+original verification path during migration. Write grant expiry and authenticated
+browser approval remain independently enforced. The ChatGPT stdio route is unaffected.
+
+Activate verifier and issuer settings together with private rollback snapshots.
+Rollback restores both; opaque tokens cannot work with the old JWT-only verifier,
+so reauthorize the existing app after rollback. Do not add a second connector.
+Verify actual linking, repeated detail reads, token refresh and Knowledge preview
+plus user-approved save/read-back separately. Implementation and synthetic tests
+are not Gemini operational verification. No user skill or project-instruction
+reinstall is needed because tool and workflow contracts do not change.

@@ -84,3 +84,18 @@ Primary documentation:
 - [Keycloak MCP authorization](https://www.keycloak.org/securing-apps/mcp-authz-server)
 - [Keycloak realm import](https://www.keycloak.org/server/importExport)
 - [Google custom connected apps](https://support.google.com/gemini/answer/17209137)
+
+### Authorization-code exchange diagnostics
+
+When consent succeeds but linking fails, MCP 401 events do not diagnose the issuer's
+code exchange. The optional `auth_diagnostics.py` launcher runs the unchanged issuer
+command and retains only allowlisted JSON warning/error categories and fixed routes
+in a private 0600 file capped at 256 KiB. Raw messages, credentials, tokens, request
+bodies, queries, user identifiers and addresses are not retained. Diagnostic write
+failures do not stop the issuer; termination signals and exit codes are forwarded.
+
+Preserve the original unit and command, allow only the diagnostic output directory,
+and restart both the issuer and its dependent edge after cutover or rollback. This
+changes neither authorization nor client instructions. Absence of warnings alone
+cannot prove a request never reached the issuer. Real client linking, reads and
+approved Knowledge persistence require separate operational verification.
