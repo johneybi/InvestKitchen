@@ -428,6 +428,8 @@ Authelia의 `authelia_at_` 접근 토큰을 인증 서버에 조회하여 검증
 설정은 Git 밖의 서비스 사용자 소유 0600 일반 파일과 사적 상위 폴더에 둔다.
 주소는 포트가 명시된 루프백 IP의 HTTP `/api/oidc/introspection`만 허용한다.
 프록시 환경 변수·리다이렉트를 사용하지 않고, 토큰·비밀키·응답을 기록하지 않는다.
+고정 HTTPS issuer에서 Host를 정하고 HTTPS 전달 헤더를 보낸다. 호출자는 이 헤더를
+선택할 수 없으며, 내부 인증 서버의 HTTPS 요구를 보존한다.
 
 발급자는 `access_token_signed_response_alg: none`으로 native opaque 토큰을 발급한다.
 이를 덮어쓰는 접근 토큰 서명 키나 암호화 설정이 없어야 한다. 서명 없는 JWT를 허용하는

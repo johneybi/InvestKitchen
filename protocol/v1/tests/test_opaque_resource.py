@@ -139,6 +139,8 @@ def test_real_loopback_http_contract(signing_key,mode):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass
         def do_POST(self):
+            assert self.headers['Host'] == 'auth.example.test'
+            assert self.headers['X-Forwarded-Proto'] == 'https'
             seen.append((self.path,self.headers.get('Authorization'),parse_qs(self.rfile.read(int(self.headers['Content-Length'])).decode())))
             status=302 if mode=='redirect' else 401 if mode=='unauthorized' else 200
             self.send_response(status)

@@ -96,7 +96,8 @@ class AutheliaTokenVerifier(JWTTokenVerifier):
         request = urllib.request.Request(c.endpoint,
             data=urlencode({"token": token, "token_type_hint": "access_token"}).encode(),
             headers={"Authorization": "Basic " + basic, "Content-Type": "application/x-www-form-urlencoded",
-                     "Accept": "application/json"})
+                     "Accept": "application/json", "Host": urlsplit(self.config.issuer_url).netloc,
+                     "X-Forwarded-Proto": "https"})
         # Neither credentials nor tokens may follow a redirect or ambient proxy.
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
         with opener.open(request, timeout=c.timeout_seconds) as response:

@@ -1,7 +1,8 @@
 """OAuth resource-server verification; authorization grants are operator-owned.
 
 An external authorization server supplies login, consent, PKCE and tokens.
-Only public RSA verification keys are loaded here. No token is issued by MCP.
+The default verifier uses public RSA keys; an explicit private configuration
+opts into Authelia introspection. No token is issued by MCP.
 """
 from __future__ import annotations
 

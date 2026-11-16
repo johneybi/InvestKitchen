@@ -395,6 +395,8 @@ file outside Git, mode 0600, owned by the service account, with private parent
 directories. Only an exact HTTP loopback-IP endpoint ending in
 `/api/oidc/introspection` with an explicit port is accepted. Ambient proxies and
 redirects are disabled; the credential is sent only to that fixed local endpoint.
+The loopback request sets Host from the fixed HTTPS issuer and forwards the HTTPS
+scheme required by the provider; callers cannot choose either header.
 No token, credential, or introspection response is logged or persisted.
 
 Authelia's client uses `access_token_signed_response_alg: none` for native opaque
