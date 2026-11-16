@@ -1,0 +1,38 @@
+{
+  "protocol/v1/adapters/gateway_facade.py": {
+    "before_sha256": "24d55d8e7667d77064e81caea6b55b8eb167917362f8f5da825335f15bb5546b",
+    "after_sha256": "3abb3343d9c250cf4b0b7cdf7d56cf401fcfc3bcb8ed6273caaa768642cd0508"
+  },
+  "protocol/v1/runtime/reference_composition.py": {
+    "before_sha256": "11821cfbc9e27887db6389a809a3af91b3e026318f3b53d819b581e75d1badbe",
+    "after_sha256": "75c8b6ed3e0d7ccdb9f2e5c922edd99b6479eec79f6dac5d4766c987cf26f936"
+  },
+  "protocol/v1/schemas/remote-gateway.schema.json": {
+    "before_sha256": "aa058d368aa4cf1be281df39334e3bfe9db8f6f24637a120d0f553bdf6b4ca7f",
+    "after_sha256": "f3118154ae1ddf9cc59d097328b9385ab3e5debc2f971f12185121b9f3d4644a"
+  },
+  "protocol/v1/transport/mcp_stdio.py": {
+    "before_sha256": "e787e839d9fb4777233ccf5cdd0f67b35c3d955fd99ff33a4e48a65585e20c2f",
+    "after_sha256": "a92a5f7eee2fe2732e5e17cb374d866d1cc109069207c6f15aae942b6ceade5e"
+  },
+  "protocol/v1/transport/stdio_rpc.py": {
+    "before_sha256": "c48783a8ce48fb2db739df8e14c4b1a8bc33234b1f8b75a97dc4374f21c6f48c",
+    "after_sha256": "492736c830bceb2d4ff3498006740c5a6e7fffaee8a64a397e04c3246aba9fc2"
+  },
+  "protocol/v1/transport/tool_catalog.json": {
+    "before_sha256": "2e0d7add774c2a944a153b0a3823aa95d8cfa05e079dfc2f8cf5e903bdd69c30",
+    "after_sha256": "d594048b6543879856621c6cdda68f284671da0fdd36cb32040cd0e65ea6d7d4"
+  },
+  "protocol/v1/workflows/protocols.py": {
+    "before_sha256": "427ff08fa2a6f9f6fed2eaf56bd62b6dc863672f8ed388ab88b22144d2395418",
+    "after_sha256": "839a7668fdb744b2d3b1456b8a60dbc38e9c3f9eac6316e6a07823a372b62847"
+  },
+  "protocol/v1/workflows/sources.json": {
+    "before_sha256": "21d7f7ca4d70fbcd978a8a97021486633c72027ab5bec7369a2d23b22f73cf0d",
+    "after_sha256": "d93480bb91813efdc785d51c8013bd43ba943354892ceadc3e58118c83d8a0cb"
+  },
+  "protocol/v1/workflows/sources/Operating_Contract.ko.md": {
+    "before_sha256": "c4b9732e4a04643cecd556d89141d1c07e87b99f1fb953366aca1934bbec85c7",
+    "after_sha256": "c87d7c761c6d2c9226e96ddf947fa657d8de040b41938d23ac19f4784b35d1da"
+  }
+}
