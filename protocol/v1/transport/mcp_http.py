@@ -39,7 +39,7 @@ from protocol.v1.transport.client_write_format import (
 from protocol.v1.transport.http_diagnostics import TransportDiagnostics, private_transport_diagnostics
 from protocol.v1.transport.mcp_read_surface import READ_TOOLS, ReadSurfaceError, RemoteReadSurface
 from protocol.v1.transport.mcp_confirmed_writes import (
-    APPLY_TOOLS, WRITE_SCOPE, WRITE_TOOLS, ConfirmedWriteConfig, ConfirmedWriteSurface,
+    APPLY_TOOLS, WRITE_SCOPE, WRITE_TOOLS, UPDATE_TOOLS, DIRECT_WRITE_TOOLS, ConfirmedWriteConfig, ConfirmedWriteSurface,
 )
 
 
@@ -133,21 +133,21 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
                 if writes is not None and write_input_format == "json-string":
                     if params.name == WRITE_CONTRACT_TOOL:
                         return get_write_contract(writes, token, arguments)
-                    if params.name in WRITE_TOOLS:
+                    if params.name in UPDATE_TOOLS:
                         grant = writes.grant(token)
                         if params.name not in writes.names(grant):
                             raise ReadSurfaceError("Unknown or unavailable write tool")
                         _, router = writes.backends[grant.identity]
                         if "update" in router.tools[params.name]["input_schema"].get("properties", {}):
                             arguments = decode_write_arguments(arguments)
-                selected = writes if writes is not None and params.name in (WRITE_TOOLS.keys() | APPLY_TOOLS.keys()) else surface
+                selected = writes if writes is not None and params.name in (UPDATE_TOOLS | APPLY_TOOLS.keys()) else surface
                 return selected.call_tool(token, params.name, arguments)
 
             value = await anyio.to_thread.run_sync(dispatch)
             if params.name == "get_capabilities" and writes is not None:
                 value = {**value, "remote_write_tools": [tool["name"] for tool in writes.list_tools(token)],
                          "remote_write_authorization": writes.authorization_status(token),
-                         "write_approval": "separate_authenticated_browser_review"}
+                         "write_approval": ("per_tool_contract" if any(t["name"] == "register_knowledge" for t in writes.list_tools(token)) else "separate_authenticated_browser_review")}
                 if write_input_format == "json-string":
                     value = {**value, "remote_write_input_format": write_input_format,
                              "remote_write_contract_tool": WRITE_CONTRACT_TOOL}
@@ -192,8 +192,8 @@ def create_http_app(gateway, verifier: JWTTokenVerifier, *, writes: ConfirmedWri
             "Match broker names and account types against returned facts, keeping portfolios separate. "
             "Use fresh reads for current-state follow-ups and preserve source dates, missing data and conflicts. "
             "Do not require a new brokerage login or account-sync approval for a read. " + (
-            "Only explicitly granted native updates are available. Preview first, present approval_url to the user, "
-            "wait for their independent NAS browser approval, then apply the exact preview and confirm read-back. "
+            "Use register_knowledge, when exposed, for explicitly requested new Knowledge additions without another approval. Analysis-only requests must not write. Other updates follow their exact preview approval contract: "
+            "when approval_url is returned, wait for independent browser approval; approve-and-save already applies the change. Confirm actual read-back. "
             "Never claim an approved preview is already saved."
             if writes is not None else
             "This client is read-only; it cannot preview, approve or apply changes.")),
@@ -349,7 +349,9 @@ def main() -> int:
                                 "instance_id": gateway.get_capabilities()["instance_id"],
                                 "permissions": [*grant.permissions, "operation.approve"],
                                 "portfolio_scope": list(grant.portfolio_scope),
-                                "tool_allowlist": [*WRITE_TOOLS, *APPLY_TOOLS],
+                                "tool_allowlist": [*UPDATE_TOOLS, *APPLY_TOOLS],
+                                "request_policy": {"max_ttl_seconds": 300, "max_future_skew_seconds": 30,
+                                                   "knowledge_registration": grant.knowledge_registration},
                                 "issued_at": now, "expires_at": expiry}
                 return build_reference_gateway(**runtime_args, approval_store_root=approval_root / binding,
                                                plan_preview_ttl_seconds=config.plan_preview_ttl_seconds,
@@ -369,7 +371,7 @@ def main() -> int:
                 args.token_introspection_config,
             ) if path is not None)
             diagnostics = private_transport_diagnostics(args.transport_diagnostics_root, protected,
-                set(READ_TOOLS) | set(WRITE_TOOLS) | set(APPLY_TOOLS) | {WRITE_CONTRACT_TOOL})
+                set(READ_TOOLS) | UPDATE_TOOLS | set(APPLY_TOOLS) | {WRITE_CONTRACT_TOOL})
         app = create_http_app(gateway, verifier, writes=writes, diagnostics=diagnostics,
                               write_input_format=args.write_input_format)
     except (OSError, ValueError, KeyError, TypeError, RuntimeError):

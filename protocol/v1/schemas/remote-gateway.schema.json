@@ -47,7 +47,8 @@
           "required": ["max_ttl_seconds", "max_future_skew_seconds"],
           "properties": {
             "max_ttl_seconds": {"type": "integer", "minimum": 1, "maximum": 3600},
-            "max_future_skew_seconds": {"type": "integer", "minimum": 0, "maximum": 300}
+            "max_future_skew_seconds": {"type": "integer", "minimum": 0, "maximum": 300},
+            "knowledge_registration": {"enum": ["browser_review", "append_only"]}
           },
           "additionalProperties": false
         },

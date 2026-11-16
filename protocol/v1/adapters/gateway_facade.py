@@ -326,6 +326,12 @@ class ReadOnlyGatewayFacade:
             arguments["target_session_date"] = target_session_date
         return self._invoke_connector("preview_knowledge_update", arguments)
 
+    def register_knowledge(self, update: dict[str, Any], *, target_session_date: str | None = None) -> dict[str, Any]:
+        arguments = {"update": update}
+        if target_session_date is not None:
+            arguments["target_session_date"] = target_session_date
+        return self._invoke_connector("register_knowledge", arguments)
+
     def apply_knowledge_update(self, preview_id: str, confirmation: str) -> dict[str, Any]:
         return self._invoke_connector(
             "apply_knowledge_update",

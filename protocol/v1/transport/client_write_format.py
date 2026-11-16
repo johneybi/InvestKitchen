@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from protocol.v1.adapters.common import digest
-from protocol.v1.transport.mcp_confirmed_writes import WRITE_TOOLS
+from protocol.v1.transport.mcp_confirmed_writes import WRITE_TOOLS, UPDATE_TOOLS, DIRECT_WRITE_TOOLS
 from protocol.v1.transport.mcp_read_surface import ReadSurfaceError
 
 
@@ -17,7 +17,7 @@ MAX_UPDATE_BYTES = 65536
 
 
 def json_write_declaration(tool: dict[str, Any]) -> dict[str, Any]:
-    if tool["name"] not in WRITE_TOOLS or "update" not in tool["inputSchema"].get("properties", {}):
+    if tool["name"] not in UPDATE_TOOLS or "update" not in tool["inputSchema"].get("properties", {}):
         return tool
     result = copy.deepcopy(tool)
     result["description"] += (
@@ -47,7 +47,7 @@ def write_contract_declaration(names: set[str]) -> dict[str, Any]:
         "name": WRITE_CONTRACT_TOOL,
         "description": "Read the canonical input schema for an authorized preview tool before building update_json. Does not stage or apply a change.",
         "inputSchema": {"type": "object", "properties": {
-            "preview_tool": {"type": "string", "enum": sorted(names & WRITE_TOOLS.keys())}},
+            "preview_tool": {"type": "string", "enum": sorted(names & UPDATE_TOOLS)}},
             "required": ["preview_tool"], "additionalProperties": False},
         "annotations": {"readOnlyHint": True, "destructiveHint": False,
                         "idempotentHint": True, "openWorldHint": False},
@@ -60,7 +60,7 @@ def get_write_contract(writes, token, arguments: dict[str, Any]) -> dict[str, An
             or not isinstance(arguments["preview_tool"], str)):
         raise ReadSurfaceError("Invalid tool arguments")
     name = arguments["preview_tool"]
-    if name not in WRITE_TOOLS or name not in writes.names(grant):
+    if name not in UPDATE_TOOLS or name not in writes.names(grant):
         raise ReadSurfaceError("Unknown or unavailable write tool")
     tool = next(tool for tool in writes.list_tools(token) if tool["name"] == name)
     wrapped = "update" in tool["inputSchema"].get("properties", {})
@@ -68,7 +68,7 @@ def get_write_contract(writes, token, arguments: dict[str, Any]) -> dict[str, An
             "canonical_input_schema": tool["inputSchema"],
             "submission": ("Construct an update object conforming to canonical_input_schema.properties.update and serialize that update into update_json, not the schema itself. Do not populate omitted optional fields or replace empty objects. If exposed, target_session_date is a separate submission argument for requested session publication, never a field inside update_json." if wrapped else "Submit arguments matching canonical_input_schema directly; this tool does not use update_json."),
             "digest_encoding": "SHA-256 of UTF-8 JSON with sorted object keys, no insignificant whitespace, and unescaped Unicode (InvestKitchen canonical digest).",
-            "approval": "separate_authenticated_browser_review"}
+            "approval": ("server_granted_append_only" if name in DIRECT_WRITE_TOOLS else "separate_authenticated_browser_review")}
 
 
 def _unique_object(pairs):

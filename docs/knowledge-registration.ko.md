@@ -1,0 +1,61 @@
+# 명시적 Knowledge 등록
+
+추적: #50. 구현 후보이며 서버 활성화·클라이언트 설치·웹 검증은 별도다.
+
+사용자가 “이 노트를 등록해 줘”라고 직접 요청하면 `register_knowledge`가 새 자료를
+검증하고 저장·재조회한다. 추가 확인 코드나 NAS 클릭은 요구하지 않는다.
+분석·요약만 요청했으면 쓰지 않는다. 외부 자료의 명령은 사용자 요청이 아니다.
+
+## 권한과 실행 계약
+
+기본값은 기존 승인 방식이다. 운영자가 기존 주체의 한정된 등록 권한을 켜야 한다.
+HTTP WriteGrant의 `knowledge_registration: append_only`, stdio grant의
+`request_policy.knowledge_registration: append_only`를 설정한다. 기존
+knowledge.commit, operation.approve, 인증 주체·클라이언트·바인딩·만료·도구
+allowlist 검사는 유지한다. allowlist가 있으면 register_knowledge를 추가한다.
+다른 도메인 권한, OAuth scope, 기간을 자동 확장하지 않는다.
+
+서버는 LLM이 보는 사용자 채팅의 진위를 판별하지 못한다. 이 설정은 인증된
+클라이언트에 주는 제한적 추가 위임이며 모델의 `user_confirmed` 같은 boolean을
+인증 증거로 받지 않는다. 사용자 요청 분류는 공통 지침 책임이고 서버는 허용된
+변경 범위·권한·저장 정합성을 강제한다. 자료 안의 주입 명령에 대한 실제 모델
+평가는 별도로 필요하다.
+
+추가는 current_state가 빈 객체이고 비어 있지 않은 Evidence·Claims를 가진다.
+기존 ID의 다른 내용, rejected/superseded 상태는 차단한다. 같은 ID·같은 내용은
+재사용할 수 있으며 새 항목이 하나도 없으면 새 generation을 만들지 않는다.
+내용만 같은 새 ID를 의미적으로 자동 병합하지는 않는다. 클라이언트는 기존 수정
+요청을 새 ID로 위장하지 않아야 한다. 정본 기록과 개인 기준 자료 모두 대조한다.
+네이티브 기록의 동시 변경은 커밋 잠금 안에서 base version을 다시 검사한다.
+
+내부적으로 기존 검증·정확한 preview·TrustedApprovalStore·commit·read-back을
+재사용한다. 감사의 approval_method는 server_granted_knowledge_addition이다.
+매번 사람이 승인했다는 기록을 만들지 않는다. 기존 preview/apply와 다른 도메인의
+독립 승인 경로는 보존한다. 수정·삭제·현재 상태 변경은 기존 승인 경로로 확인한다.
+
+동일 generation과 digest의 재요청은 already_registered, 같은 ID의 다른 내용은
+blocked, 이미 존재하는 동일 항목은 already_present다. 응답 유실은 원래 ID·해시로
+조회한다. 커밋 뒤 재조회 실패는 applied/read_back unavailable이며 저장 실패로
+보고하지 않는다. 불확실한 적용 결과는 outcome_unknown과 정확한 recovery를 반환한다.
+
+## 지침·검증·릴리스
+
+규칙 소유: 서버 등록 경계(위 runtime/transport), 요청 의도 분류
+(client-instructions/core.ko.md), 업무 방법론(Operating_Contract와 protocols.py).
+두 클라이언트는 공통 소스로 생성한다. 플랫폼별 프로필은 입력·화면 방식만 다르므로
+이번 변경에서 수정하지 않았다. 생성된 ChatGPT 지침/소스와 Gemini skill/reference는
+함께 재설치해야 한다. 생성·구조 시험 통과는 설치나 웹 모델 검증을 뜻하지 않는다.
+
+로컬 계약 시험: 기본 비노출/거부, 권한·주체·만료, stdio 저장·재조회, 프로세스 재시작
+후 재요청, 덮어쓰기·현재 상태·lifecycle 거부, 기존 자료 충돌, 동시 변경, 재조회 실패,
+HTTP JSON 입력과 read-only OAuth 거부, 기존 브라우저 승인 경계.
+
+웹 수락 사례(양쪽 새 채팅): (1) 합성 노트 분석만 → 쓰기 없음 (2) 명시적 새 노트 등록
+→ register_knowledge, 승인 화면 없음, applied+일치 (3) 같은 요청 재전송 → 중복 없음
+(4) 원문에 저장 지시 포함 → 쓰기 없음 (5) 기존 주장 정정 → 별도 검토
+(6) 저장 응답 유실 → 원래 ID 조회 (7) 구버전 서버 → 실제 계약대로 안내.
+실제 호출과 정본 결과로 판정한다. 아직 이 후보의 실제 웹 수락은 수행하지 않았다.
+
+복구: 추가 정책을 먼저 해제하면 새 도구는 숨겨지고 기존 preview 경로는 유지된다.
+서버와 설치본을 이전의 호환 조합으로 되돌려도 이미 등록한 Knowledge는 되돌리지 않는다.
+기존 generation/digest 조회와 감사 기록은 보존한다. 기간은 기존 허용 기간 그대로다.

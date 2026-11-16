@@ -45,6 +45,8 @@ WRITE_TOOLS = {
     "preview_account_sync": ("portfolio.update", "apply_account_sync"),
 }
 APPLY_TOOLS = {apply: preview for preview, (_, apply) in WRITE_TOOLS.items()}
+DIRECT_WRITE_TOOLS = {"register_knowledge"}
+UPDATE_TOOLS = set(WRITE_TOOLS) | DIRECT_WRITE_TOOLS
 COOKIE = "__Host-investkitchen-review"
 
 
@@ -57,6 +59,7 @@ class WriteGrant(BaseModel):
     permissions: tuple[Literal["knowledge.commit", "portfolio.update", "plan.update", "policy.update", "opinion.update", "account.read"], ...] = Field(min_length=1)
     portfolio_scope: tuple[str, ...] = ()
     expires_at: datetime
+    knowledge_registration: Literal["browser_review", "append_only"] = "browser_review"
 
     @field_validator("expires_at")
     @classmethod
@@ -209,6 +212,7 @@ class ConfirmedWriteSurface:
             return {"status": "oauth_scope_missing", "required_scope": WRITE_SCOPE}
         return {"status": "available" if self.names(grant) else "backend_unavailable",
                 "approval_mode": self.config.approval_mode,
+                "knowledge_registration": grant.knowledge_registration,
                 "expires_at": grant.expires_at.isoformat()}
 
     def names(self, grant: WriteGrant) -> set[str]:
@@ -219,6 +223,9 @@ class ConfirmedWriteSurface:
             required = set(router.tools.get(preview, {}).get("required_permissions", []))
             if permission in grant.permissions and required.issubset(grant.permissions) and {preview, apply}.issubset(ready):
                 names.update([preview, apply])
+        if (grant.knowledge_registration == "append_only" and "knowledge.commit" in grant.permissions
+                and "register_knowledge" in ready):
+            names.add("register_knowledge")
         return names
 
     def list_tools(self, token: AccessToken | None) -> list[dict[str, Any]]:
@@ -229,12 +236,12 @@ class ConfirmedWriteSurface:
         _, router = self.backends[grant.identity]
         automatic = self.config.approval_mode == "approve_and_apply"
         return [{"name": name,
-                 "description": router.tools[name]["description"] + (
+                 "description": router.tools[name]["description"] + (" No browser approval is required for this separately granted addition path." if name in DIRECT_WRITE_TOOLS else (
                      (" The user reviews approval_url and clicks approve-and-save; the server applies that exact change."
                       if automatic else " Open approval_url and review the exact change in the authenticated NAS browser before apply.")
                      if name in WRITE_TOOLS else
                      (" After browser approve-and-save, this returns the original result without another write. Before approval it is blocked."
-                      if automatic else " Requires the separate NAS browser approval; confirmation text alone cannot authorize this call.")),
+                      if automatic else " Requires the separate NAS browser approval; confirmation text alone cannot authorize this call."))),
                  "inputSchema": copy.deepcopy(router.tools[name]["input_schema"]),
                  "annotations": {"readOnlyHint": name in WRITE_TOOLS,
                                  "destructiveHint": name in APPLY_TOOLS,
@@ -262,6 +269,8 @@ class ConfirmedWriteSurface:
             except ValidationError:
                 raise ReadSurfaceError("Invalid tool arguments") from None
             arguments = copy.deepcopy(arguments)
+            if name in DIRECT_WRITE_TOOLS:
+                return router.call_tool(name, arguments)
             if name in WRITE_TOOLS:
                 if len(self.pending) >= self.max_pending:
                     raise ReadSurfaceError("Pending review limit reached")

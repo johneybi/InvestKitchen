@@ -406,6 +406,7 @@ def test_write_apply_surface_still_excludes_decision_and_transaction_mutations()
         name for name, tool in by_name.items() if tool["read_only"] is False
     } == {
         "apply_knowledge_update",
+        "register_knowledge",
         "apply_portfolio_update",
         "apply_account_sync",
         "apply_policy_update",
