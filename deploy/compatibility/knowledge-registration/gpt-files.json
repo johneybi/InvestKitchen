@@ -38,5 +38,9 @@
   "protocol/v1/runtime/knowledge_note.py": {
     "before_sha256": null,
     "after_sha256": "84e704ebed0b8b466556e7684db06025191e1d94686584abf6af8681cd26ac44"
+  },
+  "protocol/v1/runtime/native_knowledge_store.py": {
+    "before_sha256": "acf6d03b89b0e23c4934aa0758698081f9a7ff25882035e7c47f86b64d6df392",
+    "after_sha256": "614e552c2ff3e79f0e87cb7c0b7cb889fe4bf3b830f76103d2eb50132e29ff97"
   }
 }
