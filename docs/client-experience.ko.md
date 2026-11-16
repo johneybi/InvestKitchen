@@ -75,6 +75,18 @@ Gemini 일반 채팅의 목표 범위는 분석·계좌 조언·PRE/POST·허용
 남은 문제를 모델 선택만의 문제로 분류하지 않는다. Developer Mode의 한 번 성공을
 일반 채팅·반복 호출·저장 성공으로 대체하지 않는다.
 
+후속 확인에서는 같은 계정의 다른 PC도 Add/Connect 상태라는 사용자 보고와,
+Developer Mode의 Authentication 화면에서 `No account linked`를 확인했다.
+브라우저의 실제 Google `FinishOAuth` 응답은 HTTP 409와
+`Malformed response cannot be parsed … for CODE_EXCHANGE`를 반환했고,
+후속 `GetLink`는 404였다. 이는 모델이 추정한 오류가 아니라 계정 연결 완료 단계의
+실제 응답이다. 토큰 교환 응답 처리까지 실패 범위를 좁히지만, 어느 응답 필드·HTTP
+상태·중계 구간이 원인인지는 아직 확인하지 못했다. 성공적인 토큰 발급 이력과 별도로
+후속 시도에서는 코드가 교환되지 않은 경우도 있어 모든 시도를 같은 결과로 묶지 않는다.
+공개 토큰 주소의 무자격 오류가 정상 JSON이라는 검사도 실제 Google 코드 교환 성공의
+증거가 아니다. 다음 진단은 같은 요청의 토큰 응답 상태·Content-Type·필수 필드의
+존재와 자료형을 비밀값 없이 대조해야 한다. 원문 토큰·인증 코드·쿠키·HAR는 기록하지 않는다.
+
 공식 맞춤 앱 안내의 지역·언어·계정·활동 설정 조건도 별도로 확인한다. 영어 화면으로
 열었다는 사실은 계정의 모든 지원 조건 충족을 증명하지 않는다.
 [Google 맞춤 앱 안내](https://support.google.com/gemini/answer/17209137?hl=en)
