@@ -119,6 +119,7 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
         "search_knowledge",
         "preview_knowledge_update",
         "apply_knowledge_update",
+        "register_knowledge",
         "preview_portfolio_update",
         "apply_portfolio_update",
         "preview_account_sync",
@@ -149,7 +150,8 @@ def test_tool_catalog_marks_connector_mutations_and_matches_gateway_surface() ->
         tool["read_only"] is True
         for tool in catalog["tools"]
         if tool["name"] not in {
-            "apply_knowledge_update", "apply_portfolio_update", "apply_account_sync",
+            "apply_knowledge_update",
+            "register_knowledge", "apply_portfolio_update", "apply_account_sync",
             "apply_policy_update", "apply_opinion_weighting_update", "apply_plan_update",
         }
     )

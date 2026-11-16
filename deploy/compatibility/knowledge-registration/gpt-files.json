@@ -1,0 +1,46 @@
+{
+  "protocol/v1/adapters/gateway_facade.py": {
+    "before_sha256": "24d55d8e7667d77064e81caea6b55b8eb167917362f8f5da825335f15bb5546b",
+    "after_sha256": "a817e9f2029d6d621bf45b12a75a9d693860f630d4dd2855579f875f5f409ab2"
+  },
+  "protocol/v1/runtime/reference_composition.py": {
+    "before_sha256": "11821cfbc9e27887db6389a809a3af91b3e026318f3b53d819b581e75d1badbe",
+    "after_sha256": "6da4e4e577d671f16ae7dd5d6c57ecfc00dc30df93434df8563305796ce997cb"
+  },
+  "protocol/v1/schemas/remote-gateway.schema.json": {
+    "before_sha256": "aa058d368aa4cf1be281df39334e3bfe9db8f6f24637a120d0f553bdf6b4ca7f",
+    "after_sha256": "f3118154ae1ddf9cc59d097328b9385ab3e5debc2f971f12185121b9f3d4644a"
+  },
+  "protocol/v1/transport/mcp_stdio.py": {
+    "before_sha256": "e787e839d9fb4777233ccf5cdd0f67b35c3d955fd99ff33a4e48a65585e20c2f",
+    "after_sha256": "44b435f577056ddbf927181a1cf4e0c0684c496eb02adc9d8a16a3d217195f24"
+  },
+  "protocol/v1/transport/stdio_rpc.py": {
+    "before_sha256": "c48783a8ce48fb2db739df8e14c4b1a8bc33234b1f8b75a97dc4374f21c6f48c",
+    "after_sha256": "492736c830bceb2d4ff3498006740c5a6e7fffaee8a64a397e04c3246aba9fc2"
+  },
+  "protocol/v1/transport/tool_catalog.json": {
+    "before_sha256": "2e0d7add774c2a944a153b0a3823aa95d8cfa05e079dfc2f8cf5e903bdd69c30",
+    "after_sha256": "46f656bb3285e3f01aaef3afd2643f85057f779dba49b119b01d4bdfbb56b605"
+  },
+  "protocol/v1/workflows/protocols.py": {
+    "before_sha256": "427ff08fa2a6f9f6fed2eaf56bd62b6dc863672f8ed388ab88b22144d2395418",
+    "after_sha256": "b12779af5c9ccb8c5e0a329d6e027b3bd315d6bdbdb41487f873a30fc08c9800"
+  },
+  "protocol/v1/workflows/sources.json": {
+    "before_sha256": "21d7f7ca4d70fbcd978a8a97021486633c72027ab5bec7369a2d23b22f73cf0d",
+    "after_sha256": "0cdcb2e89d6682698e8f6209bfe80b27c8885d553abb9d8f97789c8a64f25708"
+  },
+  "protocol/v1/workflows/sources/Operating_Contract.ko.md": {
+    "before_sha256": "c4b9732e4a04643cecd556d89141d1c07e87b99f1fb953366aca1934bbec85c7",
+    "after_sha256": "6817d8e0af6ef7dfb0596832dd210b024f36187a8b51fa78b6fe1916d557a291"
+  },
+  "protocol/v1/runtime/knowledge_note.py": {
+    "before_sha256": null,
+    "after_sha256": "84e704ebed0b8b466556e7684db06025191e1d94686584abf6af8681cd26ac44"
+  },
+  "protocol/v1/runtime/native_knowledge_store.py": {
+    "before_sha256": "acf6d03b89b0e23c4934aa0758698081f9a7ff25882035e7c47f86b64d6df392",
+    "after_sha256": "614e552c2ff3e79f0e87cb7c0b7cb889fe4bf3b830f76103d2eb50132e29ff97"
+  }
+}

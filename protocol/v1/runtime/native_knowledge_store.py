@@ -31,6 +31,7 @@ _APPLICABILITY = {"applicable", "conditional", "stale", "expired", "out_of_scope
 _CONFIDENCE = {"low", "medium", "high", "unknown"}
 _PRECISION = {"source_exact", "date_only", "session", "inferred", "unknown"}
 MAX_GENERATION_CONTENT_BYTES = 65536
+MAX_VALIDATED_JOURNAL_CACHE_BYTES = 16 * 1024 * 1024
 
 
 class KnowledgeRejected(ValueError):
@@ -300,6 +301,7 @@ class NativeKnowledgeStore:
         self.root = root.resolve()
         self.journal_path = self.root / "knowledge-journal.jsonl"
         self.lock_path = self.root / ".knowledge-journal.lock"
+        self._validated_cache = None
 
     @contextmanager
     def _locked(self, *, exclusive: bool) -> Iterator[None]:
@@ -307,9 +309,22 @@ class NativeKnowledgeStore:
                           read_only=self.read_only):
             yield
 
+    def _journal_version(self):
+        info = self.journal_path.stat()
+        return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
     def _read_unlocked(self) -> list[dict[str, Any]]:
+        # Called under the cross-process journal lock. Every read checks file
+        # identity, size and both modification/change timestamps. Never cache
+        # authorization, failed validation, or caller-mutable projections.
         if not self.journal_path.exists():
+            self._validated_cache = None
             return []
+        version = self._journal_version()
+        cached = self._validated_cache
+        if cached is not None and cached[0] == version:
+            return deepcopy(cached[1])
+        self._validated_cache = None
         rows: list[dict[str, Any]] = []
         with self.journal_path.open("r", encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, start=1):
@@ -329,6 +344,10 @@ class NativeKnowledgeStore:
                 if row.get("payload_digest") != digest(request) or row.get("generation_id") != request.get("generation_id"):
                     raise KnowledgeStoreCorrupt(f"knowledge digest mismatch at line {line_number}")
                 rows.append(row)
+        if self._journal_version() != version:
+            raise KnowledgeStoreCorrupt("knowledge journal changed during validation")
+        if version[2] <= MAX_VALIDATED_JOURNAL_CACHE_BYTES:
+            self._validated_cache = (version, deepcopy(rows))
         return rows
 
     def read_journal(self) -> list[dict[str, Any]]:

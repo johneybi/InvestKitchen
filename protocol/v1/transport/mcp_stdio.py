@@ -69,6 +69,7 @@ _TOOL_CAPABILITY = {
     "get_transactions": "transaction.history",
     "start_reflection": "reflection.session",
     "preview_knowledge_update": None,
+    "register_knowledge": None,
     "apply_knowledge_update": None,
     "preview_portfolio_update": None,
     "apply_portfolio_update": None,
@@ -84,6 +85,7 @@ _CONNECTOR_WRITE_TOOLS = {
     "preview_plan_update",
     "apply_plan_update",
     "preview_knowledge_update",
+    "register_knowledge",
     "apply_knowledge_update",
     "preview_portfolio_update",
     "apply_portfolio_update",
@@ -159,11 +161,12 @@ def _validate_modern_meta(params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _public_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    from protocol.v1.runtime.knowledge_note import NOTE_SCHEMA
     return {
         "name": tool["name"],
         "title": tool.get("title") or tool["name"].replace("_", " ").title(),
         "description": tool["description"],
-        "inputSchema": tool["input_schema"],
+        "inputSchema": NOTE_SCHEMA if tool["name"] == "register_knowledge" else tool["input_schema"],
         "annotations": {
             "readOnlyHint": bool(tool.get("read_only", False)),
             "destructiveHint": bool(tool.get("destructive", False)),
@@ -228,6 +231,7 @@ class TradeMindMCPServer:
                 "Protocol retrieval does not execute a workflow or verify compliance. "
                 "For current broker holdings, costs and valuation, use get_account_state when available: "
                 "it refreshes automatically and needs no sync approval. "
+                "When exposed, register_knowledge saves explicitly requested new Knowledge additions without another confirmation; never use for analysis-only requests. Other writes retain their approval contract. "
                 "InvestKitchen exposes investment context plus explicitly confirmed native Knowledge "
                 "and Portfolio observation updates. Treat preview confirmation, freshness, authority, "
                 "and portfolio scope as binding."

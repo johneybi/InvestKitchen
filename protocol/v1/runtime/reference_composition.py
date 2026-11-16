@@ -117,6 +117,7 @@ class _ConnectorWriteCoordinator:
         plan_portfolio_stores: dict[str, AdvisoryPlanStore] | None = None,
         plan_preview_ttl_seconds: int = 300,
         opinion_weighting: OpinionWeightingStore | None = None,
+        knowledge_baseline: Callable[[], dict[str, Any]] | None = None,
     ) -> None:
         self.native_store = native_store
         self.native_knowledge = native_knowledge
@@ -132,6 +133,7 @@ class _ConnectorWriteCoordinator:
                              portfolio_stores=plan_portfolio_stores, preview_ttl_seconds=plan_preview_ttl_seconds)
                              if advisory_plans is not None else None)
         self.opinion_weighting = opinion_weighting
+        self.knowledge_baseline = knowledge_baseline
         self.pending: dict[str, dict[str, Any]] = {}
         self.consumed: set[str] = set()
 
@@ -234,6 +236,81 @@ class _ConnectorWriteCoordinator:
                          "retry_apply_safe": False},
         }
 
+    def register_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Execute a bounded standing grant, not a model assertion of human approval."""
+        self._authorize("knowledge.commit", approve=True)
+        if self.grant.get("request_policy", {}).get("knowledge_registration") != "append_only":
+            raise ConnectorWriteRejected("knowledge_registration_not_granted")
+        from protocol.v1.runtime.native_knowledge_store import validate_knowledge_request
+        if "update" in payload:
+            if set(payload) - {"update", "target_session_date"}:
+                raise ConnectorWriteRejected("knowledge_input_profiles_mixed")
+            update = validate_knowledge_request(deepcopy(payload["update"]))
+        else:
+            from protocol.v1.runtime.knowledge_note import validate_note, note_generation_id, build_note_update
+            note = validate_note(payload)
+            observed_note = self.native_knowledge.get_generation(note_generation_id(note), include_content=True)
+            if observed_note["commit_status"] == "committed":
+                content = observed_note.get("content") or {}
+                evidence = content.get("evidence", [])
+                if (len(evidence) != 1 or evidence[0].get("content_ref_or_value") != note["source_text"]
+                        or content.get("current_state") != {}):
+                    raise ConnectorWriteRejected("knowledge_generation_conflict")
+                return {"status": "already_registered", "generation_id": note_generation_id(note),
+                        "payload_digest": observed_note["payload_digest"],
+                        "read_back": {"matches": True, "status": "committed"},
+                        "summary_changes_applied": False,
+                        "recovery": {"tool": "get_knowledge_generation", "arguments": {
+                            "generation_id": note_generation_id(note), "include_content": True}}}
+            update = build_note_update(note)
+        recovery = {"tool": "get_knowledge_generation", "arguments": {
+            "generation_id": update["generation_id"], "expected_payload_digest": digest(update),
+            "include_content": False}, "retry_apply_safe": False}
+        # Read-back is safe after response loss, even following a process restart.
+        observed = self.native_knowledge.get_generation(update["generation_id"],
+            expected_payload_digest=digest(update), include_content=False)
+        if observed["commit_status"] == "committed":
+            if not observed.get("expected_payload_matches"):
+                return {"status": "blocked", "reason": "knowledge_generation_conflict", "recovery": recovery}
+            return {"status": "already_registered", "generation_id": update["generation_id"],
+                    "payload_digest": digest(update), "read_back": {"matches": True, "status": "committed"},
+                    "recovery": recovery}
+        if update["current_state"] or not update["evidence"] or not update["claims"]:
+            return {"status": "blocked", "reason": "knowledge_addition_only",
+                    "next_tool": "preview_knowledge_update"}
+        # The exact native base version is checked again under the commit lock.
+        # Capture it before examining overlays so a concurrent replacement fails closed.
+        base = self.native_knowledge.latest_generation_id()
+        baseline = self.knowledge_baseline() if self.knowledge_baseline else {}
+        existing = [baseline, self.native_knowledge.overlay() or {}]
+        has_new = False
+        for collection, key in (("evidence", "evidence_id"), ("claims", "claim_id")):
+            known = {row[key]: row for source in existing for row in source.get(collection, [])}
+            has_new = has_new or any(row[key] not in known for row in update[collection])
+            if any(row[key] in known and row != known[row[key]] for row in update[collection]):
+                return {"status": "blocked", "reason": "knowledge_replacement_requires_review",
+                        "next_tool": "preview_knowledge_update"}
+        if not has_new:
+            return {"status": "already_present", "new_generation_created": False}
+        if any(row["registration_state"] in {"rejected", "superseded"} for row in update["claims"]):
+            return {"status": "blocked", "reason": "knowledge_lifecycle_change_requires_review",
+                    "next_tool": "preview_knowledge_update"}
+        prepared = self.preview_knowledge({**payload, "update": update})
+        preview_id = prepared["preview_id"]
+        pending = self.pending[preview_id]
+        if pending["preview"]["preview"].get("base_version") != base:
+            self.discard(preview_id)
+            return {"status": "blocked", "reason": "knowledge_base_version_conflict"}
+        pending["registration"] = True
+        try:
+            result = self.apply_knowledge({"preview_id": preview_id, "confirmation": prepared["confirmation"]})
+            return {**result, "registration_mode": "server_granted_append_only"}
+        except Exception:
+            # A write or receipt may have completed; never encourage blind replay.
+            return {"status": "outcome_unknown", "recovery": recovery, "retry_apply_safe": False}
+        finally:
+            self.discard(preview_id)
+
     def apply_knowledge(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._authorize("knowledge.commit", approve=True)
         preview_id = str(payload.get("preview_id") or "")
@@ -249,7 +326,7 @@ class _ConnectorWriteCoordinator:
             principal=self.principal,
             grant=self.grant,
             interaction_ref="mcp-confirmation:" + digest([preview_id, confirmation])[:24],
-            approval_method="mcp_explicit_confirmation",
+            approval_method=("server_granted_knowledge_addition" if pending.get("registration") else "mcp_explicit_confirmation"),
             ttl_seconds=300,
         )
         result = apply_knowledge_commit(
@@ -633,6 +710,10 @@ class _ConnectorWriteCoordinator:
                 result["preview_plan_update"] = self.plan_updates.preview
             if "operation.approve" in permissions and allowed("apply_plan_update"):
                 result["apply_plan_update"] = self.plan_updates.apply
+        if ({"knowledge.commit", "operation.approve"}.issubset(permissions)
+                and self.grant.get("request_policy", {}).get("knowledge_registration") == "append_only"
+                and allowed("register_knowledge")):
+            result["register_knowledge"] = self.register_knowledge
         if "knowledge.commit" in permissions and allowed("preview_knowledge_update"):
             result["preview_knowledge_update"] = self.preview_knowledge
             if "operation.approve" in permissions and allowed("apply_knowledge_update"):
@@ -1083,6 +1164,7 @@ def build_reference_gateway(
             plan_portfolio_stores=plan_portfolio_stores,
             plan_preview_ttl_seconds=plan_preview_ttl_seconds,
             opinion_weighting=opinion_weighting,
+            knowledge_baseline=personal_store.knowledge_projection if personal_store is not None else None,
         )
         connector_handlers = coordinator.handlers()
         connector_review = coordinator.review

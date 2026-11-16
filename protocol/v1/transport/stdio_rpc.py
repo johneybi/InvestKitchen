@@ -138,6 +138,7 @@ class LocalToolRouter:
             "preview_plan_update",
             "apply_plan_update",
             "preview_knowledge_update",
+            "register_knowledge",
             "apply_knowledge_update",
             "preview_portfolio_update",
             "apply_portfolio_update",
@@ -199,6 +200,8 @@ class LocalToolRouter:
             return self.gateway.get_knowledge_generation(**arguments)
         if name == "search_knowledge":
             return self.gateway.search_knowledge(arguments["query"], limit=arguments.get("limit", 20))
+        if name == "register_knowledge":
+            return self.gateway.register_knowledge(**arguments)
         if name == "preview_knowledge_update":
             return self.gateway.preview_knowledge_update(**arguments)
         if name == "apply_knowledge_update":
