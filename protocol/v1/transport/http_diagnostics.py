@@ -68,7 +68,7 @@ class TransportDiagnostics:
     def authorization(self, outcome: str):
         allowed = {"accepted", "malformed", "unsupported_header", "unknown_key", "invalid_scope_claim",
                    "invalid_identity_or_time", "expired", "not_yet_valid", "wrong_audience",
-                   "wrong_issuer", "invalid_signature", "missing_claim"}
+                   "wrong_issuer", "invalid_signature", "missing_claim", "inactive", "introspection_unavailable"}
         self._append({"event": "authorization",
                       "outcome": outcome if isinstance(outcome, str) and outcome in allowed else "other"})
 

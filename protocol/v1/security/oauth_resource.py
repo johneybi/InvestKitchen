@@ -109,6 +109,9 @@ class JWTTokenVerifier:
     async def verify_token(self, token: str) -> AccessToken | None:
         return self.verification_result(token)[0]
 
+    async def verification_result_async(self, token: str) -> tuple[AccessToken | None, str]:
+        return self.verification_result(token)
+
     def verification_result(self, token: str) -> tuple[AccessToken | None, str]:
         """Return a fixed private diagnostic category, never token or claim data."""
         if len(token) > 16384:
@@ -164,6 +167,11 @@ class JWTTokenVerifier:
             return None, "malformed"
 
 
-def load_oauth_resource(config_path: Path, jwks_path: Path) -> JWTTokenVerifier:
+def load_oauth_resource(config_path: Path, jwks_path: Path,
+                        introspection_path: Path | None = None) -> JWTTokenVerifier:
     config = OAuthResourceConfig.model_validate_json(config_path.read_text(encoding="utf-8"))
+    if introspection_path is not None:
+        from protocol.v1.security.opaque_resource import AutheliaTokenVerifier, load_introspection
+        return AutheliaTokenVerifier(config, json.loads(jwks_path.read_text(encoding="utf-8")),
+                                     load_introspection(introspection_path))
     return JWTTokenVerifier(config, json.loads(jwks_path.read_text(encoding="utf-8")))
