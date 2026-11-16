@@ -56,6 +56,12 @@
 5. 동일 Google 계정의 다른 PC에서도 같은 새 채팅 시나리오를 반복한다. 계정 연결이
    보인다는 것만으로 교차 PC·모드 검증이 끝난 것은 아니다.
 
+연결 앱 등록, Google 계정 링크, 채팅 도구 활성화, 스킬 설치는 별도로 확인한다.
+Available actions에 도구가 보이거나 서버가 새 토큰을 발급했더라도 앱이 Connect/Add로
+돌아오면 설치·연결 완료로 기록하지 않는다. 실제 새 채팅에서 도구 호출과 결과까지
+확인한다. 토큰 원문 없이 동의·코드 교환 시각과 도구 호출 기록을 대조하며, 모델이
+말한 Timeout/권한 없음/없는 도구를 실제 서버 오류로 채택하지 않는다.
+
 Google은 SKILL.md·폴더·zip 업로드와 참고 파일을 포함한 교체를 안내한다.
 **zip은 선택적인 묶음 형식**이며 별도의 실행 프로그램이 아니다. 스크립트로 NAS에
 우회 접속하는 기능은 넣지 않는다. [공식 스킬 안내](https://support.google.com/gemini/answer/17094296?hl=en)
@@ -64,7 +70,24 @@ Gemini 일반 채팅의 목표 범위는 분석·계좌 조언·PRE/POST·허용
 실제 비교에서는 앱을 선택한 Pro 일반 새 채팅이 실패했고, 같은 앱의 Pro Developer Mode에서는
 상세 조회가 성공했다. 일반 채팅 실패 때 NAS는 인증과 도구 목록에 응답했지만 상세 도구
 호출은 관측되지 않았다. 이 결과만으로 서버 결함이나 플랫폼 미지원이라고 단정하지 않는다.
-Developer Mode의 한 번 성공을 일반 채팅·반복 호출·저장 성공으로 대체하지 않는다. Canvas는
+후속 Developer Mode 요청도 도구 이벤트 없이 실패했고, 재연결에서는 NAS의 코드 교환과
+접근·갱신 토큰 발급 이후에도 앱이 Connect/Add로 돌아오는 현상을 확인했다. 따라서 현재
+남은 문제를 모델 선택만의 문제로 분류하지 않는다. Developer Mode의 한 번 성공을
+일반 채팅·반복 호출·저장 성공으로 대체하지 않는다.
+
+공식 맞춤 앱 안내의 지역·언어·계정·활동 설정 조건도 별도로 확인한다. 영어 화면으로
+열었다는 사실은 계정의 모든 지원 조건 충족을 증명하지 않는다.
+[Google 맞춤 앱 안내](https://support.google.com/gemini/answer/17209137?hl=en)
+
+장기 연결 검증에는 최초 코드 교환뿐 아니라 접근 토큰 만료 뒤 갱신·반복 호출이 포함된다.
+Google은 기존 갱신 토큰을 유지하는 Persistent Linking 방식을 안내하고, Authelia는
+갱신 때 새 토큰을 발급하는 방식을 문서화한다. 이는 후속 비교가 필요한 호환성 차이며
+현재 실패의 확정 원인은 아니다. 토큰 수명을 늘리거나 재사용 방어를 해제하는 변경을
+단순 재연결 수리로 적용하지 않는다.
+[Google OAuth 안내](https://developers.google.com/connected-apps/mcp/oauth),
+[Authelia offline_access](https://www.authelia.com/integration/openid-connect/openid-connect-1.0-claims/)
+
+Canvas는
 문서·앱·시각 화면 구성에 활용할 수 있다. 다만 맞춤 MCP와 Canvas의 동시 사용은
 실제 계정에서 따로 검증한다. 확인 전에는 도구가 보이는 일반 채팅에서 자료를 읽고,
 Canvas에는 관측 시각을 붙인 최소 스냅샷을 사용한다. Canvas 자동 저장을 NAS 기록으로
