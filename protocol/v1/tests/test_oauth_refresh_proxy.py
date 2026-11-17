@@ -234,6 +234,31 @@ def test_listener_cannot_bind_publicly():
         Server(('0.0.0.0', 0), gate())
 
 
+def test_real_listener_restarts_after_server_closed_health_connection():
+    import socket
+    first = Server(('127.0.0.1', 0), gate())
+    address = first.server_address
+    thread = threading.Thread(target=first.serve_forever, daemon=True)
+    thread.start()
+    try:
+        # Wait for server EOF before closing our socket so the server is the
+        # active closer and its endpoint enters TIME_WAIT.
+        with socket.create_connection(address, timeout=3) as client:
+            client.sendall(b'GET /healthz HTTP/1.0\r\nHost: localhost\r\n\r\n')
+            while client.recv(4096):
+                pass
+    finally:
+        first.shutdown(); first.server_close(); thread.join(timeout=3)
+    second = Server(address, gate())
+    try:
+        assert not second.gate.entries
+        # Address reuse must not let another process share a running listener.
+        with pytest.raises(OSError):
+            Server(address, gate())
+    finally:
+        second.server_close()
+
+
 def test_real_http_boundary_deduplicates_and_never_exposes_health_public_path():
     issuer = Issuer()
     server = Server(('127.0.0.1', 0), gate(issuer))

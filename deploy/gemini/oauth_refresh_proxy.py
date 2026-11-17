@@ -230,7 +230,10 @@ class LoopbackIssuer:
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = False
+    # Health requests can leave server-side TIME_WAIT sockets. Permit a stopped
+    # listener to rebind; SO_REUSEPORT is not enabled and a live listener remains
+    # exclusive. This does not retain any token cache across restarts.
+    allow_reuse_address = True
 
     def __init__(self, address, gate):
         if address[0] != '127.0.0.1':
