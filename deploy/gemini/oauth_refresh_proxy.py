@@ -16,6 +16,7 @@ import math
 import secrets
 import threading
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qsl, urlencode, urlsplit, quote_plus
@@ -56,6 +57,34 @@ class RefreshGate:
         self.lock = threading.Lock()
         self.counts = {'refresh_exchanges': 0, 'duplicate_requests': 0,
                        'verified_responses': 0, 'rejected_responses': 0}
+        self.recent = deque(maxlen=16)
+
+    def observe(self, stage, started, status):
+        # Fixed labels and numbers only; never request fields, error text or tokens.
+        if stage not in ('exchange', 'introspection', 'response_write'):
+            raise ValueError('invalid diagnostic stage')
+        with self.lock:
+            self.recent.append(dict(stage=stage, status=int(status),
+                                    elapsed_ms=max(0, round((self.clock()-started)*1000)),
+                                    at=int(self.wall_clock())))
+
+    def exchange(self, body, authorization):
+        started, status = self.clock(), 0
+        try:
+            response = self.issuer.exchange(body, authorization)
+            status = response.status
+            return response
+        finally:
+            self.observe('exchange', started, status)
+
+    def introspect(self, token, client_id, secret):
+        started, status = self.clock(), 0
+        try:
+            live = self.issuer.introspect(token, client_id, secret)
+            status = 200 if live.get('active') is True else 400
+            return live
+        finally:
+            self.observe('introspection', started, status)
 
     def count(self, name):
         with self.lock:
@@ -63,7 +92,8 @@ class RefreshGate:
 
     def health(self):
         with self.lock:
-            return dict(status='ready', **self.counts)
+            return dict(status='ready', **self.counts,
+                        recent_stages=[dict(item) for item in self.recent])
 
     def _prune_locked(self):
         now = self.clock()
@@ -93,7 +123,7 @@ class RefreshGate:
                     and bool(form.get('client_secret'))
                     and bool(form.get('refresh_token')) and not authorization)
         if not eligible:
-            return self.issuer.exchange(body, authorization)
+            return self.exchange(body, authorization)
         canonical = json.dumps(sorted(pairs), ensure_ascii=True).encode()
         key = hmac.digest(self.key, canonical, hashlib.sha256)
         with self.lock:
@@ -111,7 +141,7 @@ class RefreshGate:
         if owner:
             self.count('refresh_exchanges')
             try:
-                entry.response = self.issuer.exchange(body, authorization)
+                entry.response = self.exchange(body, authorization)
             except Exception:
                 entry.response = error(503, 'temporarily_unavailable')
             finally:
@@ -135,7 +165,7 @@ class RefreshGate:
                     str(payload.get('token_type', '')).lower() != 'bearer' or
                     not isinstance(payload.get('refresh_token'), str)):
                 raise ValueError('invalid token response')
-            live = self.issuer.introspect(token, form['client_id'], form['client_secret'])
+            live = self.introspect(token, form['client_id'], form['client_secret'])
             if live.get('active') is not True or live.get('client_id') != self.client_id:
                 # Do not bypass issuer revocation or extend duplicate tolerance
                 # after a subsequent rotation. Return no token material.
@@ -256,6 +286,7 @@ class Handler(BaseHTTPRequestHandler):
             self.server.slots.release()
 
     def reply(self, response):
+        started, written = self.server.gate.clock(), False
         try:
             self.send_response(response.status)
             self.send_header('Content-Type', 'application/json')
@@ -266,9 +297,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Retry-After', '5')
             self.end_headers()
             self.wfile.write(response.body)
+            written = True
         except OSError:
             # The exchange has already been retained even if the client left.
             pass
+        finally:
+            if self.command == 'POST' and self.path == '/api/oidc/token':
+                # A successful socket write is not proof Google stored the response.
+                self.server.gate.observe('response_write', started,
+                                         response.status if written else 0)
 
 
 def main():

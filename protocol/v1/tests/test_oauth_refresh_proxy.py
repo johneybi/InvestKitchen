@@ -53,6 +53,40 @@ def test_lost_success_response_retry_does_not_revoke_rotated_grant():
     assert issuer.introspection_calls == 2
 
 
+def test_stage_diagnostics_distinguish_slow_exchange_and_introspection():
+    now = [0]
+    issuer = Issuer()
+    exchange, introspect = issuer.exchange, issuer.introspect
+    def slow_exchange(*args):
+        now[0] += 25
+        return exchange(*args)
+    def slow_introspect(*args):
+        now[0] += 4
+        return introspect(*args)
+    issuer.exchange, issuer.introspect = slow_exchange, slow_introspect
+    proxy = gate(issuer, clock=lambda: now[0])
+    assert proxy.handle(body()).status == 200
+    stages = proxy.health()['recent_stages']
+    assert [(x['stage'], x['status'], x['elapsed_ms']) for x in stages] == [
+        ('exchange', 200, 25000), ('introspection', 200, 4000)]
+    encoded = json.dumps(proxy.health())
+    assert all(secret not in encoded for secret in ('synthetic-secret', 'new-access', 'new-refresh'))
+
+
+def test_diagnostics_are_bounded_copied_and_do_not_store_error_text():
+    issuer = Issuer()
+    issuer.introspection_error = True
+    proxy = gate(issuer)
+    for _ in range(30):
+        assert proxy.handle(body()).status == 503
+    stages = proxy.health()['recent_stages']
+    assert len(stages) == 16
+    assert all(x['stage'] == 'introspection' and x['status'] == 0 for x in stages)
+    stages[0]['stage'] = 'mutated'
+    assert proxy.health()['recent_stages'][0]['stage'] == 'introspection'
+    assert proxy.counts['refresh_exchanges'] == 1
+
+
 def test_without_duplicate_suppression_same_retry_revokes_grant():
     issuer = Issuer()
     assert issuer.exchange(body()).status == 200
