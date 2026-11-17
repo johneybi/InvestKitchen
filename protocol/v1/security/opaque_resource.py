@@ -74,6 +74,9 @@ class AutheliaTokenVerifier(JWTTokenVerifier):
             raise ValueError("Introspection client must have an existing read grant")
         self.introspection = introspection
         self._slots = threading.BoundedSemaphore(2)
+        # Bound queued work as well as issuer concurrency. A normal MCP client
+        # can initialize parallel calls while its GET/notification is in flight.
+        self._admissions = threading.BoundedSemaphore(8)
 
     async def verify_token(self, token: str) -> AccessToken | None:
         return (await self.verification_result_async(token))[0]
@@ -83,10 +86,19 @@ class AutheliaTokenVerifier(JWTTokenVerifier):
             return super().verification_result(token)
         if not 32 <= len(token) <= 16384 or any(ord(c) < 33 or ord(c) > 126 for c in token):
             return None, "malformed"
-        if not self._slots.acquire(blocking=False):
+        if not self._admissions.acquire(blocking=False):
             return None, "introspection_unavailable"
         try:
-            return await anyio.to_thread.run_sync(self._opaque_result, token)
+            return await anyio.to_thread.run_sync(self._queued_opaque_result, token)
+        finally:
+            self._admissions.release()
+
+    def _queued_opaque_result(self, token):
+        # Wait off the event loop; never cache a prior authorization decision.
+        if not self._slots.acquire(timeout=self.introspection.timeout_seconds):
+            return None, "introspection_unavailable"
+        try:
+            return self._opaque_result(token)
         finally:
             self._slots.release()
 
