@@ -140,7 +140,15 @@ def search_knowledge(
     if overlay is not None:
         for row in overlay["claims"]:
             by_claim[str(row["claim_id"])] = dict(row)
-    ranked: list[tuple[int, str, dict[str, Any]]] = []
+    by_evidence = {
+        str(row["evidence_id"]): row
+        for row in baseline.get("evidence") or []
+        if isinstance(row, dict) and row.get("evidence_id")
+    }
+    if overlay is not None:
+        by_evidence.update({str(row["evidence_id"]): row for row in overlay["evidence"]})
+    claim_generations = overlay["claim_generations"] if overlay is not None else {}
+    ranked: list[tuple[bool, int, str, dict[str, Any]]] = []
     for row in by_claim.values():
         if row.get("registration_state") != "canonical":
             continue
@@ -151,13 +159,23 @@ def search_knowledge(
             str(row.get("claim_type") or ""),
             str(row.get("stance") or ""),
         ]).casefold()
-        score = sum(searchable.count(term) for term in terms) if terms else 1
+        # Match only titles belonging to this claim's evidence, never an
+        # unrelated source or raw journal field. Do not return source paths.
+        titles = []
+        for ref in row.get("evidence_refs") or []:
+            source = by_evidence.get(str(ref), {}).get("source") or {}
+            title = source.get("document_id")
+            if isinstance(title, str):
+                titles.append(title.casefold())
+        score = (sum(searchable.count(term) + sum(title.count(term) for title in titles)
+                     for term in terms) if terms else 1)
         if score > 0:
             effective = row.get("effective_at") if isinstance(row.get("effective_at"), dict) else {}
-            ranked.append((score, str(effective.get("value") or ""), row))
-    ranked.sort(key=lambda item: (item[0], item[1], str(item[2].get("claim_id") or "")), reverse=True)
+            ranked.append((bool(terms) and query.strip().casefold() in titles,
+                           score, str(effective.get("value") or ""), row))
+    ranked.sort(key=lambda item: (item[0], item[1], item[2], str(item[3].get("claim_id") or "")), reverse=True)
     results = []
-    for score, _, row in ranked[:limit]:
+    for _, score, _, row in ranked[:limit]:
         results.append({
             "claim_id": row.get("claim_id"),
             "statement": row.get("statement"),
@@ -178,6 +196,8 @@ def search_knowledge(
             "truth_status": row.get("truth_status"),
             "applicability_status": row.get("applicability_status"),
             "match_score": score,
+            **({"generation_id": claim_generations[row["claim_id"]]}
+               if row["claim_id"] in claim_generations else {}),
         })
     current = get_current_knowledge(store, max_outlook=1, native_knowledge=native_knowledge)
     generation = ((current.get("data") or {}).get("generation") or {}) if isinstance(current.get("data"), dict) else {}
