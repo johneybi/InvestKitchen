@@ -9,6 +9,7 @@ import json
 import os
 import secrets
 import socket
+import sqlite3
 import subprocess
 import tempfile
 import time
@@ -21,11 +22,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 try:
     from deploy.gemini.oauth_refresh_proxy import LoopbackIssuer, RefreshGate
+    from deploy.gemini.sqlite_journal import full_wal_storage_path
 except ModuleNotFoundError:
     from oauth_refresh_proxy import LoopbackIssuer, RefreshGate
+    from sqlite_journal import full_wal_storage_path
 
 
-def run(binary):
+def run(binary, journal_mode=None, client_hash='argon2'):
     os.umask(0o077)
     with tempfile.TemporaryDirectory(prefix='investkitchen-refresh-synthetic-') as directory:
         root = Path(directory)
@@ -42,7 +45,22 @@ def run(binary):
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
                                 serialization.NoEncryption()).decode()
-        secret = secrets.token_urlsafe(32)
+        secret = fields['Random Password']
+        print('SYNTHETIC HASH PARAMETERS:', fields['Digest'].split('$')[3], flush=True)
+        client_digest = fields['Digest']
+        if client_hash == 'pbkdf2':
+            # A generated synthetic value only; never pass a real secret in argv.
+            encoded = subprocess.run([str(binary), 'crypto', 'hash', 'generate', 'pbkdf2',
+                '--variant', 'sha512', '--iterations', '310000', '--password', secret,
+                '--no-confirm'], capture_output=True, text=True, check=True)
+            client_digest = next(line.split(':', 1)[1].strip() for line in encoded.stdout.splitlines()
+                                 if line.startswith('Digest:'))
+            assert client_digest.startswith('$pbkdf2-sha512$310000$')
+        print('SYNTHETIC CLIENT HASH:', client_hash, flush=True)
+        if journal_mode == 'delete':
+            connection = sqlite3.connect(str(root / 'db.sqlite3'))
+            assert connection.execute('PRAGMA journal_mode='+journal_mode).fetchone()[0] == journal_mode
+            connection.close()
         origin = 'https://mcp.example.test'
         redirect = 'http://127.0.0.1:8099/callback'
         config = {
@@ -54,25 +72,30 @@ def run(binary):
             'access_control': {'default_policy': 'deny', 'rules': [{'domain': 'mcp.example.test', 'policy': 'one_factor'}]},
             'session': {'secret': secrets.token_urlsafe(48), 'cookies': [
                 {'domain': 'mcp.example.test', 'authelia_url': origin}]},
-            'storage': {'encryption_key': secrets.token_urlsafe(48), 'local': {'path': str(root / 'db.sqlite3')}},
+            'storage': {'encryption_key': secrets.token_urlsafe(48), 'local': {
+                'path': str(root / 'db.sqlite3')}},
             'notifier': {'filesystem': {'filename': str(root / 'notifications.txt')}},
             'identity_providers': {'oidc': {
                 'hmac_secret': secrets.token_urlsafe(48),
                 'jwks': [{'key_id': 'synthetic', 'algorithm': 'RS256', 'use': 'sig', 'key': pem}],
                 'lifespans': {'access_token': '5 minutes', 'refresh_token': '10 minutes'},
-                'clients': [{'client_id': 'synthetic-client', 'client_secret': '$plaintext$' + secret,
+                'clients': [{'client_id': 'synthetic-client', 'client_secret': client_digest,
                              'authorization_policy': 'one_factor', 'consent_mode': 'implicit',
                              'redirect_uris': [redirect], 'scopes': ['openid', 'offline_access'],
                              'grant_types': ['authorization_code', 'refresh_token'],
                              'response_types': ['code'], 'token_endpoint_auth_method': 'client_secret_post'}]}}}
         config_path = root / 'configuration.json'
         config_path.write_text(json.dumps(config))
-        validated = subprocess.run([str(binary), 'validate-config', '--config', str(config_path)], capture_output=True)
+        environment = os.environ.copy()
+        environment.pop('AUTHELIA_STORAGE_LOCAL_PATH', None)
+        if journal_mode == 'wal':
+            environment['AUTHELIA_STORAGE_LOCAL_PATH'] = full_wal_storage_path(root / 'db.sqlite3')
+        validated = subprocess.run([str(binary), 'validate-config', '--config', str(config_path)], capture_output=True, env=environment)
         if validated.returncode:
             # Only configuration error categories, no generated values.
             raise RuntimeError('synthetic configuration rejected')
         with (root / 'service.log').open('wb') as log:
-            process = subprocess.Popen([str(binary), '--config', str(config_path)], stdout=log, stderr=log)
+            process = subprocess.Popen([str(binary), '--config', str(config_path)], stdout=log, stderr=log, env=environment)
             try:
                 deadline = time.monotonic() + 30
                 while True:
@@ -105,6 +128,10 @@ def run(binary):
                     'targetURL': origin, 'requestMethod': 'GET'})
                 if status != 200: raise RuntimeError('synthetic login failed')
                 print('SYNTHETIC: issuer ready and test account authenticated', flush=True)
+                if journal_mode:
+                    connection = sqlite3.connect(str(root / 'db.sqlite3'))
+                    assert connection.execute('PRAGMA journal_mode').fetchone()[0] == journal_mode
+                    connection.close()
                 verifier = secrets.token_urlsafe(48)
                 challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
                 query = urlencode({'client_id': 'synthetic-client', 'redirect_uri': redirect,
@@ -133,9 +160,12 @@ def run(binary):
                 if not code: raise RuntimeError('synthetic authorization code unavailable: ' + json.dumps({'status': status, 'path': urlsplit(location).path, 'query_keys': list(parse_qs(urlsplit(location).query)), 'error': parse_qs(urlsplit(location).query).get('error'), 'description': parse_qs(urlsplit(location).query).get('error_description')}))
                 print('SYNTHETIC: authorization code obtained', flush=True)
                 issuer = LoopbackIssuer(port, origin)
+                exchange_started = time.monotonic()
                 initial = issuer.exchange(urlencode({'grant_type': 'authorization_code', 'client_id': 'synthetic-client',
                     'client_secret': secret, 'code': code, 'redirect_uri': redirect, 'code_verifier': verifier}).encode())
-                if initial.status != 200: raise RuntimeError('synthetic code exchange failed')
+                print('SYNTHETIC CODE EXCHANGE SECONDS:', round(time.monotonic()-exchange_started, 3), flush=True)
+                if initial.status != 200:
+                    raise RuntimeError('synthetic code exchange HTTP status: '+str(initial.status))
                 original = json.loads(initial.body)
                 refresh = urlencode({'grant_type': 'refresh_token', 'client_id': 'synthetic-client',
                     'client_secret': secret, 'refresh_token': original['refresh_token']}).encode()
@@ -167,5 +197,7 @@ def run(binary):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--authelia', type=Path, required=True)
+    parser.add_argument('--journal-mode', choices=['wal','delete'])
+    parser.add_argument('--client-hash', choices=['argon2','pbkdf2'], default='argon2')
     args = parser.parse_args()
-    run(args.authelia.resolve())
+    run(args.authelia.resolve(), args.journal_mode, args.client_hash)
