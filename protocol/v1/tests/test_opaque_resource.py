@@ -127,6 +127,7 @@ def test_http_reads_remain_scoped_and_revocation_is_immediate(signing_key, monke
 
 def test_bounded_concurrency_fails_closed(signing_key,monkeypatch):
     v=verifier(signing_key,monkeypatch)
+    v.introspection = profile(timeout_seconds=0.1)
     v._slots.acquire();v._slots.acquire()
     try:
         assert asyncio.run(v.verification_result_async(TOKEN))==(None,'introspection_unavailable')
@@ -204,3 +205,39 @@ def test_transient_auth_outage_is_503_without_challenge_then_recovers(signing_ke
         monkeypatch.setattr(v,'_fetch',lambda token:{'active':False})
         assert _post(client,'tools/list',headers=h).status_code==401
         assert _post(client,'tools/list',headers=HEADERS).status_code==401
+
+
+def test_parallel_mcp_auth_burst_queues_without_increasing_issuer_concurrency(signing_key, monkeypatch):
+    v = verifier(signing_key, monkeypatch)
+    lock = threading.Lock()
+    running = peak = calls = 0
+    def fetch(token):
+        nonlocal running, peak, calls
+        with lock:
+            running += 1
+            peak = max(peak, running)
+            calls += 1
+        time.sleep(0.025)
+        with lock:
+            running -= 1
+        return claims()
+    monkeypatch.setattr(v, '_fetch', fetch)
+    async def burst():
+        return await asyncio.gather(*(v.verification_result_async(TOKEN) for _ in range(8)))
+    results = asyncio.run(burst())
+    assert all(outcome == 'accepted' for _, outcome in results)
+    assert calls == 8 and peak == 2  # no cached/shared authorization result
+    monkeypatch.setattr(v, '_fetch', lambda token: {'active': False})
+    assert asyncio.run(v.verification_result_async(TOKEN)) == (None, 'inactive')
+
+
+def test_auth_admission_overload_is_bounded_and_recovers(signing_key, monkeypatch):
+    v = verifier(signing_key, monkeypatch)
+    for _ in range(8):
+        assert v._admissions.acquire(blocking=False)
+    try:
+        assert asyncio.run(v.verification_result_async(TOKEN)) == (None, 'introspection_unavailable')
+    finally:
+        for _ in range(8):
+            v._admissions.release()
+    assert asyncio.run(v.verification_result_async(TOKEN))[1] == 'accepted'

@@ -313,7 +313,7 @@ class NativeKnowledgeStore:
         info = self.journal_path.stat()
         return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
 
-    def _read_unlocked(self) -> list[dict[str, Any]]:
+    def _validated_rows_unlocked(self) -> list[dict[str, Any]]:
         # Called under the cross-process journal lock. Every read checks file
         # identity, size and both modification/change timestamps. Never cache
         # authorization, failed validation, or caller-mutable projections.
@@ -323,7 +323,7 @@ class NativeKnowledgeStore:
         version = self._journal_version()
         cached = self._validated_cache
         if cached is not None and cached[0] == version:
-            return deepcopy(cached[1])
+            return cached[1]
         self._validated_cache = None
         rows: list[dict[str, Any]] = []
         with self.journal_path.open("r", encoding="utf-8") as handle:
@@ -347,16 +347,21 @@ class NativeKnowledgeStore:
         if self._journal_version() != version:
             raise KnowledgeStoreCorrupt("knowledge journal changed during validation")
         if version[2] <= MAX_VALIDATED_JOURNAL_CACHE_BYTES:
-            self._validated_cache = (version, deepcopy(rows))
+            self._validated_cache = (version, rows)
         return rows
+
+    def _read_unlocked(self) -> list[dict[str, Any]]:
+        # Public journal reads remain detached from the internal validated view.
+        return deepcopy(self._validated_rows_unlocked())
 
     def read_journal(self) -> list[dict[str, Any]]:
         with self._locked(exclusive=False):
             return self._read_unlocked()
 
     def latest_generation_id(self) -> str | None:
-        rows = self.read_journal()
-        return str(rows[-1]["generation_id"]) if rows else None
+        with self._locked(exclusive=False):
+            rows = self._validated_rows_unlocked()
+            return str(rows[-1]["generation_id"]) if rows else None
 
     def get_generation(self, generation_id: str, *, expected_payload_digest: str | None = None,
                        include_content: bool = True) -> dict[str, Any]:
@@ -372,8 +377,12 @@ class NativeKnowledgeStore:
             raise KnowledgeRejected("expected_payload_digest_invalid")
         if not isinstance(include_content, bool):
             raise KnowledgeRejected("include_content_invalid")
-        rows = self.read_journal()
-        row = next((item for item in rows if item["generation_id"] == generation_id), None)
+        with self._locked(exclusive=False):
+            rows = self._validated_rows_unlocked()
+            found = next((item for item in rows if item["generation_id"] == generation_id), None)
+            # A single-generation read must not clone every unrelated source.
+            row = deepcopy(found) if found is not None else None
+            is_latest = row is not None and rows[-1]["generation_id"] == generation_id
         result = {
             "protocol_version": PROTOCOL_VERSION,
             "status": "ok",
@@ -385,7 +394,7 @@ class NativeKnowledgeStore:
             "expected_payload_matches": (row["payload_digest"] == expected_payload_digest
                                          if row is not None and expected_payload_digest is not None else None),
             "committed_at": deepcopy(row["committed_at"]) if row is not None else None,
-            "is_latest": row is not None and rows[-1]["generation_id"] == generation_id,
+            "is_latest": is_latest,
             "retry_apply_safe": False,
             "content": None,
             "content_status": "not_requested" if not include_content else "not_observed",
@@ -408,14 +417,19 @@ class NativeKnowledgeStore:
         return result
 
     def has_generations(self) -> bool:
-        return bool(self.read_journal())
+        with self._locked(exclusive=False):
+            return bool(self._validated_rows_unlocked())
 
     def overlay(self) -> dict[str, Any] | None:
-        rows = self.read_journal()
+        with self._locked(exclusive=False):
+            rows = self._validated_rows_unlocked()
+        # The validated view is immutable inside the store. Build one snapshot
+        # projection and detach its merged contents instead of cloning history.
         if not rows:
             return None
         evidence: dict[str, dict[str, Any]] = {}
         claims: dict[str, dict[str, Any]] = {}
+        claim_generations: dict[str, str] = {}
         current_state: dict[str, Any] = {}
         for row in rows:
             request = row["request"]
@@ -423,11 +437,12 @@ class NativeKnowledgeStore:
                 evidence[str(item["evidence_id"])] = dict(item)
             for item in request["claims"]:
                 claims[str(item["claim_id"])] = dict(item)
+                claim_generations[str(item["claim_id"])] = str(request["generation_id"])
             current_state.update(dict(request["current_state"]))
         latest = rows[-1]
         latest_request = latest["request"]
         committed_at = latest["committed_at"]
-        return {
+        return deepcopy({
             "generated_at": latest_request["generated_at"],
             "knowledge_generation": {
                 "generation_id": latest_request["generation_id"],
@@ -438,8 +453,9 @@ class NativeKnowledgeStore:
             },
             "evidence": list(evidence.values()),
             "claims": list(claims.values()),
+            "claim_generations": claim_generations,
             "current_state": current_state,
-        }
+        })
 
     def commit(
         self,
@@ -460,7 +476,7 @@ class NativeKnowledgeStore:
             raise KnowledgeRejected("knowledge_payload_digest_invalid")
         generation_id = str(request["generation_id"])
         with self._locked(exclusive=True):
-            rows = self._read_unlocked()
+            rows = self._validated_rows_unlocked()
             for row in rows:
                 if row.get("generation_id") != generation_id:
                     continue
@@ -470,7 +486,7 @@ class NativeKnowledgeStore:
                     "protocol_version": PROTOCOL_VERSION,
                     "generation_id": generation_id,
                     "payload_digest": payload_digest,
-                    "committed_at": row["committed_at"],
+                    "committed_at": deepcopy(row["committed_at"]),
                     "evidence_count": len(request["evidence"]),
                     "claim_count": len(request["claims"]),
                     "replayed": True,

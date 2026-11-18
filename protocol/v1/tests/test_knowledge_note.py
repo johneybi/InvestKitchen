@@ -64,3 +64,54 @@ def test_stdio_advertises_only_content_fields_and_accepts_natural_note(tmp_path)
     assert 'update' not in tool['inputSchema']['properties']
     result=_call(TradeMindMCPServer(g),'register_knowledge',NOTE,request_id='note')
     assert result['status']=='applied'
+
+
+def test_title_search_returns_original_generation_after_a_later_note(tmp_path):
+    from protocol.v1.adapters.native_personal import search_knowledge
+    g = gateway(tmp_path)
+    first = g.register_knowledge(**{**NOTE, 'title': '보관 원문 확인'})
+    second = g.register_knowledge(title='다른 자료', source_text='별개의 합성 원문.',
+                                 statements=['보관 원문 확인 ' * 40])
+    store = NativeKnowledgeStore(tmp_path/'native', read_only=True)
+    result = search_knowledge(None, '보관 원문 확인', limit=1, native_knowledge=store)['data']
+    assert result['generation_id'] == second['generation_id']
+    assert result['results'][0]['generation_id'] == first['generation_id']
+    original = store.get_generation(result['results'][0]['generation_id'])
+    assert original['content']['evidence'][0]['content_ref_or_value'] == NOTE['source_text']
+    assert original['payload_digest'] == first['payload_digest']
+
+
+def test_title_search_does_not_match_unrelated_or_noncanonical_evidence(tmp_path):
+    from protocol.v1.adapters.native_personal import search_knowledge
+    from protocol.v1.tests.test_native_knowledge_store import _request, _commit
+    store = NativeKnowledgeStore(tmp_path/'native')
+    request = _request()
+    request['evidence'][0]['source']['document_id'] = 'rejected-only-title'
+    request['claims'][0]['registration_state'] = 'rejected'
+    # An unlinked evidence title must not make another claim match.
+    extra = deepcopy(request['evidence'][0])
+    extra['evidence_id'] = 'evidence:unlinked'
+    extra['source']['document_id'] = 'unlinked-only-title'
+    request['evidence'].append(extra)
+    _commit(store, tmp_path/'approvals', request)
+    assert search_knowledge(None, 'rejected-only-title', native_knowledge=store)['data']['result_count'] == 0
+    request2 = _request(generation_id='generation:canonical')
+    request2['claims'][0]['claim_id'] = 'claim:new-canonical'
+    request2['claims'][0]['evidence_refs'] = ['evidence:canonical']
+    request2['evidence'][0]['evidence_id'] = 'evidence:canonical'
+    request2['evidence'][0]['source']['document_id'] = 'canonical-title'
+    _commit(store, tmp_path/'approvals', request2)
+    assert search_knowledge(None, 'unlinked-only-title', native_knowledge=store)['data']['result_count'] == 0
+
+
+def test_search_generation_metadata_does_not_expose_source_locator(tmp_path):
+    from protocol.v1.adapters.native_personal import search_knowledge
+    from protocol.v1.tests.test_native_knowledge_store import _request, _commit
+    store = NativeKnowledgeStore(tmp_path/'native')
+    request = _request()
+    request['evidence'][0]['source']['document_id'] = 'Synthetic title'
+    request['evidence'][0]['source_locator'] = '/private/synthetic/never-return-this'
+    _commit(store, tmp_path/'approvals', request)
+    result = search_knowledge(None, 'Synthetic title', native_knowledge=store)
+    assert result['data']['results'][0]['generation_id'] == request['generation_id']
+    assert '/private/synthetic' not in __import__('json').dumps(result)

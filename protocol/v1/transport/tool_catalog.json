@@ -460,7 +460,7 @@
     },
     {
       "name": "search_knowledge",
-      "description": "Search canonical Knowledge claims using a bounded query.",
+      "description": "Search canonical Knowledge claims and their linked source titles using a bounded query. Native matches include their own generation_id; use get_knowledge_generation with that ID to read the exact stored original. The top-level generation_id describes the latest store state, not every match.",
       "read_only": true,
       "required_permissions": ["knowledge.read"],
       "input_schema": {

@@ -53,3 +53,36 @@ def test_oversize_journal_does_not_remain_cached(tmp_path,monkeypatch):
     monkeypatch.setattr(module,'MAX_VALIDATED_JOURNAL_CACHE_BYTES',1)
     store=NativeKnowledgeStore(tmp_path/'native');assert store.read_journal()
     assert store._validated_cache is None
+
+
+def test_single_generation_and_overlay_never_expose_internal_nested_values(tmp_path):
+    g = gateway(tmp_path)
+    result = g.register_knowledge(update())
+    store = NativeKnowledgeStore(tmp_path/'native')
+    first = store.get_generation(result['generation_id'])
+    first['content']['claims'][0]['conditions'].append('caller mutation')
+    first['committed_at']['value'] = 'caller mutation'
+    overlay = store.overlay()
+    overlay['claims'][0]['conditions'].append('overlay mutation')
+    overlay['evidence'][0]['source']['document_id'] = 'overlay mutation'
+    overlay['knowledge_generation']['committed_at']['value'] = 'overlay mutation'
+    again = store.get_generation(result['generation_id'])
+    assert again['content']['claims'][0]['conditions'] == update()['claims'][0]['conditions']
+    assert again['content']['evidence'][0]['source']['document_id'] == update()['evidence'][0]['source']['document_id']
+    assert again['committed_at'] == result['committed_at']
+
+
+@pytest.mark.parametrize('reader', ['get_generation', 'latest_generation_id', 'has_generations', 'overlay'])
+def test_internal_projection_reads_still_revalidate_changed_journal(tmp_path, reader):
+    g = gateway(tmp_path)
+    result = g.register_knowledge(update())
+    store = NativeKnowledgeStore(tmp_path/'native')
+    store.read_journal()
+    raw = store.journal_path.read_bytes()
+    store.journal_path.write_bytes(raw.replace(b'Asset Alpha', b'Asset Omega'))
+    with pytest.raises(KnowledgeStoreCorrupt):
+        if reader == 'get_generation':
+            store.get_generation(result['generation_id'])
+        else:
+            getattr(store, reader)()
+    assert store._validated_cache is None
