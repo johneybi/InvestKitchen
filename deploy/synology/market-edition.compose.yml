@@ -1,0 +1,43 @@
+services:
+  market-edition:
+    image: ${MARKET_EDITION_IMAGE:?Set the verified market edition image}
+    pull_policy: never
+    user: ${MARKET_EDITION_UID:?Set the NAS service UID}:${MARKET_EDITION_GID:?Set the NAS service GID}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    ports:
+      - "${MARKET_EDITION_LAN_IP:?Set the NAS LAN address}:${MARKET_EDITION_PORT:?Set the dedicated HTTPS port}:8443"
+    volumes:
+      - type: bind
+        source: ${MARKET_EDITION_STATE:?Set the dedicated local state directory}
+        target: /state
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${MARKET_EDITION_TRUST:?Set the dedicated trust directory}
+        target: /trust
+        read_only: true
+        bind:
+          create_host_path: false
+    command:
+      - --bind
+      - 0.0.0.0
+      - --container-network
+      - --port
+      - "8443"
+      - --instance-id
+      - ${MARKET_EDITION_INSTANCE:?Set the operator-approved instance ID}
+      - --db
+      - /state/editions.sqlite
+      - --server-cert
+      - /trust/nas.pem
+      - --server-key
+      - /trust/nas-key.pem
+      - --publisher-ca
+      - /trust/publisher-ca.pem
+      - --operator-key
+      - /trust/operator-public.pem
+      - --policy
+      - /trust/publish-approval.json
