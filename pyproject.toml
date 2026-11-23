@@ -16,7 +16,10 @@ remote = [
 ]
 dev = [
   "pytest>=8",
+  "cryptography>=45",
   "jsonschema>=4.20",
+  "rfc3339-validator==0.1.4",
+  "rfc3986-validator==0.1.1",
   "referencing>=0.35",
   "mcp==2.3.0",
   "PyJWT[crypto]==2.15.1",

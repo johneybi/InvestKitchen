@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:investkitchen:market-edition-ingest:v1",
+  "title": "InvestKitchen pre-open market edition upload v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "edition_id", "market", "trade_date", "kind", "parent_edition_id", "source_cutoff_at", "published_at", "snapshot", "report"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "edition_id": {"$ref": "#/$defs/id"},
+    "market": {"const": "KR"},
+    "trade_date": {"type": "string", "format": "date"},
+    "kind": {"const": "preopen"},
+    "parent_edition_id": {"oneOf": [{"$ref": "#/$defs/id"}, {"type": "null"}]},
+    "source_cutoff_at": {"$ref": "#/$defs/timestamp"},
+    "published_at": {"$ref": "#/$defs/timestamp"},
+    "snapshot": {"$ref": "#/$defs/snapshot"},
+    "report": {"$ref": "#/$defs/report"}
+  },
+  "$defs": {
+    "id": {"type": "string", "format": "uuid", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:[.][0-9]+)?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
+    },
+    "label": {"type": "string", "minLength": 1, "maxLength": 160},
+    "note": {"type": "string", "minLength": 1, "maxLength": 600},
+    "labels": {"type": "array", "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/label"}},
+    "source_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_id", "scope", "screened_count", "coverage", "gaps", "sources"],
+      "properties": {
+        "snapshot_id": {"$ref": "#/$defs/id"},
+        "scope": {"$ref": "#/$defs/note"},
+        "screened_count": {"type": ["integer", "null"], "minimum": 0},
+        "coverage": {"enum": ["complete", "partial"]},
+        "gaps": {"$ref": "#/$defs/labels"},
+        "sources": {"type": "array", "maxItems": 2000, "items": {"$ref": "#/$defs/source"}}
+      },
+      "if": {"properties": {"coverage": {"const": "partial"}}},
+      "then": {"properties": {"gaps": {"minItems": 1}}}
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "publisher", "title", "known_at", "excerpt"],
+      "anyOf": [{"required": ["url"]}, {"required": ["document_ref"]}],
+      "properties": {
+        "source_id": {"$ref": "#/$defs/source_id"},
+        "publisher": {"$ref": "#/$defs/label"},
+        "title": {"$ref": "#/$defs/label"},
+        "url": {"type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048},
+        "document_ref": {"$ref": "#/$defs/label"},
+        "known_at": {"$ref": "#/$defs/timestamp"},
+        "excerpt": {"$ref": "#/$defs/note"}
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "summary", "themes", "body_markdown", "candidates"],
+      "properties": {
+        "title": {"$ref": "#/$defs/label"},
+        "summary": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "themes": {"$ref": "#/$defs/labels"},
+        "body_markdown": {"type": "string", "minLength": 1, "maxLength": 262144},
+        "candidates": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/candidate"}}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "name", "status", "reason", "recheck", "evidence"],
+      "properties": {
+        "candidate_id": {"type": "string", "pattern": "^KRX:[0-9A-Z]{6}$"},
+        "name": {"$ref": "#/$defs/label"},
+        "status": {"enum": ["priority", "watch", "excluded"]},
+        "reason": {"$ref": "#/$defs/note"},
+        "recheck": {"$ref": "#/$defs/note"},
+        "evidence": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/evidence"}},
+        "evidence_gap": {"$ref": "#/$defs/note"}
+      },
+      "if": {"properties": {"evidence": {"maxItems": 0}}},
+      "then": {"required": ["evidence_gap"]}
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text", "source_ids"],
+      "properties": {
+        "type": {"enum": ["fact", "interpretation"]},
+        "text": {"$ref": "#/$defs/note"},
+        "source_ids": {"type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": {"$ref": "#/$defs/source_id"}}
+      }
+    }
+  }
+}
