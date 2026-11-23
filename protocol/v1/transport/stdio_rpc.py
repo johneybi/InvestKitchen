@@ -160,6 +160,12 @@ class LocalToolRouter:
             raise RequestError("invalid_arguments", "Tool arguments must be an object")
         _validate_schema(arguments, tool["input_schema"])
 
+        if name == "get_stock_analysis_context":
+            from protocol.v1.runtime.stock_analysis_context import collect_stock_context
+            try:
+                return collect_stock_context(self.gateway, arguments["portfolio_id"], arguments.get("symbols", []))
+            except ValueError:
+                raise RequestError("invalid_arguments", "Invalid analysis scope or symbols") from None
         if name == "get_capabilities":
             return self.gateway.get_capabilities()
         if name == "list_portfolios":

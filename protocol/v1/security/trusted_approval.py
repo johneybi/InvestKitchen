@@ -13,6 +13,7 @@ from protocol.v1.adapters.common import PROTOCOL_VERSION, canonical_json, digest
 
 
 _ACTION_PERMISSION = {
+    "briefing.record": "briefing.record",
     "plan.update": "plan.update",
     "decision.create": "decision.create",
     "transaction.record": "transaction.record",
