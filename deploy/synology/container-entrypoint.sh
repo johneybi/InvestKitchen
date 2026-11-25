@@ -86,9 +86,7 @@ case "$OPINION_WRITES" in
     ;;
 esac
 
-# This source revision is used before opening writes, so the previous Core can read the store.
-CORE_ROLLBACK_READ_ONLY=1
-if [ "$CORE_ROLLBACK_READ_ONLY" = "0" ] && { [ "$CONNECTOR_WRITES" = "enabled" ] || [ "$ACCOUNT_SYNC" = "enabled" ] || [ "$POLICY_WRITES" = "enabled" ] || [ "$PLAN_WRITES" = "enabled" ] || [ "$OPINION_WRITES" = "enabled" ]; }; then
+if [ "$CONNECTOR_WRITES" = "enabled" ] || [ "$ACCOUNT_SYNC" = "enabled" ] || [ "$POLICY_WRITES" = "enabled" ] || [ "$PLAN_WRITES" = "enabled" ] || [ "$OPINION_WRITES" = "enabled" ]; then
     WRITE_PRINCIPAL=/tmp/investkitchen-write-principal.json
     WRITE_GRANT=/tmp/investkitchen-write-grant.json
     python3 - "$PERSONAL_DATA_ROOT/personal-data-manifest.json" "$WRITE_PRINCIPAL" "$WRITE_GRANT" <<'PY'
