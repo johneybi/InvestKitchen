@@ -366,6 +366,9 @@ def build_reconciliation_candidate(
     cash_basis_refs: Iterable[dict[str, Any]] | None = None,
     short_allowed_account_ids: Iterable[str] | None = None,
     created_at: dict[str, Any] | None = None,
+    account_batch: dict[str, Any] | None = None,
+    base_checkpoint_id: str | None = None,
+    same_observation_revision: bool = False,
 ) -> dict[str, Any]:
     portfolio_id = _validate_portfolio_shape(current_portfolio)
     _validate_portfolio_shape(observed_portfolio, expected_portfolio_id=portfolio_id)
@@ -375,6 +378,9 @@ def build_reconciliation_candidate(
 
     current = copy.deepcopy(current_portfolio)
     observed = copy.deepcopy(observed_portfolio)
+    observation_fields = ("observed_at", "source_evidence") if same_observation_revision else ()
+    position_review_fields = (*POSITION_REVIEW_FIELDS, *observation_fields)
+    cash_review_fields = (*CASH_REVIEW_FIELDS, *observation_fields)
     current_accounts = _account_index(current["accounts"])
     observed_accounts = _account_index(observed["accounts"])
     observed_completeness = _account_completeness(observed)
@@ -497,7 +503,7 @@ def build_reconciliation_candidate(
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        POSITION_REVIEW_FIELDS,
+                        position_review_fields,
                     )
                     if changes:
                         differences.append(_difference("position", "changed", _position_identity_public(key), changes))
@@ -521,7 +527,7 @@ def build_reconciliation_candidate(
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        POSITION_REVIEW_FIELDS,
+                        position_review_fields,
                     )
                     if changes:
                         differences.append(_difference("position", "changed", _position_identity_public(key), changes))
@@ -577,7 +583,7 @@ def build_reconciliation_candidate(
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        CASH_REVIEW_FIELDS,
+                        cash_review_fields,
                     )
                     if changes:
                         differences.append(_difference("cash", "changed", {"cash_id": cash_id, "account_id": account_id}, changes))
@@ -599,7 +605,7 @@ def build_reconciliation_candidate(
                     changes = _field_changes(
                         current_row,
                         observed_row,
-                        CASH_REVIEW_FIELDS,
+                        cash_review_fields,
                     )
                     if changes:
                         differences.append(_difference("cash", "changed", {"cash_id": cash_id, "account_id": account_id}, changes))
@@ -661,8 +667,9 @@ def build_reconciliation_candidate(
     completeness["accounts"] = [account_rows[key] for key in sorted(account_rows)]
     completeness["holdings"] = _rollup_state(row["holdings"] for row in completeness["accounts"])
     completeness["cash"] = _rollup_state(row["cash"] for row in completeness["accounts"])
-    reconciled["completeness"] = completeness
-    reconciled["migration_gaps"] = list(current.get("migration_gaps") or []) + copy.deepcopy(gaps)
+    if not same_observation_revision:
+        reconciled["completeness"] = completeness
+        reconciled["migration_gaps"] = list(current.get("migration_gaps") or []) + copy.deepcopy(gaps)
 
     created = copy.deepcopy(created_at or timepoint())
     if _point(created, code="reconciliation_created_at_invalid") < _point(
@@ -686,6 +693,7 @@ def build_reconciliation_candidate(
             cash_basis_refs=cash_basis_refs,
             short_allowed_account_ids=short_allowed_account_ids,
             created_at=created,
+            account_batch=account_batch,
         )
     except CheckpointError as exc:
         raise ReconciliationError(exc.code) from exc
@@ -702,6 +710,7 @@ def build_reconciliation_candidate(
         "snapshot_effective_at": copy.deepcopy(snapshot_effective_at),
         "source_ref": source_ref,
         "status": "review_required",
+        **({"base_checkpoint_id": base_checkpoint_id} if base_checkpoint_id is not None else {}),
         "current_portfolio_digest": digest(current_portfolio),
         "observed_portfolio_digest": digest(observed_portfolio),
         "journal_cursor": copy.deepcopy(cursor),
@@ -732,6 +741,8 @@ def build_reconciliation_candidate_from_latest_checkpoint(
     source_ref: str,
     created_at: dict[str, Any] | None = None,
     identity_scope_account_ids: Iterable[str] | None = None,
+    account_batch: dict[str, Any] | None = None,
+    expected_checkpoint_id: str | None = None,
 ) -> dict[str, Any]:
     portfolio_id = _validate_portfolio_shape(observed_portfolio)
     created = copy.deepcopy(created_at) if created_at is not None else timepoint()
@@ -754,6 +765,14 @@ def build_reconciliation_candidate_from_latest_checkpoint(
         checkpoint = projection["checkpoint"]
     except CheckpointError as exc:
         raise ReconciliationError(exc.code) from exc
+    base_checkpoint_id = checkpoint["checkpoint_id"]
+    if expected_checkpoint_id is not None and expected_checkpoint_id != base_checkpoint_id:
+        raise ReconciliationError("preview_stale")
+    if account_batch and account_batch["parent_checkpoint_id"] != base_checkpoint_id:
+        raise ReconciliationError("preview_stale")
+    same_observation_revision = account_batch is not None and snapshot_effective_at == checkpoint["snapshot_effective_at"]
+    if same_observation_revision and cursor != checkpoint["write_cursor"]:
+        raise ReconciliationError("preview_stale")
     candidate = build_reconciliation_candidate(
         current,
         observed_portfolio,
@@ -763,6 +782,9 @@ def build_reconciliation_candidate_from_latest_checkpoint(
         cash_basis_refs=checkpoint.get("cash_basis_refs") or [],
         short_allowed_account_ids=checkpoint.get("short_allowed_account_ids") or [],
         created_at=created,
+        account_batch=account_batch,
+        base_checkpoint_id=base_checkpoint_id,
+        same_observation_revision=same_observation_revision,
     )
     if candidate.get("journal_cursor") != cursor:
         raise ReconciliationError("reconciliation_cursor_changed_during_build")
@@ -806,13 +828,20 @@ def accept_reconciliation_candidate(
     checkpoint = candidate.get("checkpoint_draft")
     if not isinstance(checkpoint, dict):
         raise ReconciliationError("reconciliation_checkpoint_invalid")
+    expected_checkpoint_id = candidate.get("base_checkpoint_id")
+    if expected_checkpoint_id is not None and journal_cursor_for_snapshot(
+        write_store,
+        portfolio_id=candidate["portfolio_id"],
+        snapshot_effective_at=candidate["snapshot_effective_at"],
+    ) != candidate["journal_cursor"]:
+        raise ReconciliationError("preview_stale")
     try:
         final_checkpoint = bind_reconciliation_acceptance(
             checkpoint,
             candidate_ref=str(candidate["candidate_id"]),
             verification_ref=verification_ref,
         )
-        persist_checkpoint(checkpoint_store, write_store, final_checkpoint)
+        persist_checkpoint(checkpoint_store, write_store, final_checkpoint, expected_checkpoint_id=expected_checkpoint_id)
     except CheckpointError as exc:
         raise ReconciliationError(exc.code) from exc
     return {

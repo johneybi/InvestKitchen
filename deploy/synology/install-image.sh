@@ -63,7 +63,15 @@ fi
 LOAD_OUT=$(mktemp /tmp/trademind-docker-load.XXXXXX)
 PREFLIGHT_OUT=$(mktemp /tmp/trademind-mcp-preflight.XXXXXX)
 trap 'rm -f "$LOAD_OUT" "$PREFLIGHT_OUT"' EXIT HUP INT TERM
-timeout "${DOCKER_LOAD_TIMEOUT}s" "$DOCKER_BIN" load -i "$ARCHIVE" >"$LOAD_OUT"
+if [ -n "${INVESTKITCHEN_PREFLIGHT_IMAGE_ID:-}" ]; then
+  LOADED_ID=$(timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" image inspect --format '{{.Id}}' "$IMAGE_REF")
+  [ "$LOADED_ID" = "$INVESTKITCHEN_PREFLIGHT_IMAGE_ID" ] || {
+    echo "Loaded image ID does not match the verified release." >&2
+    exit 2
+  }
+else
+  timeout "${DOCKER_LOAD_TIMEOUT}s" "$DOCKER_BIN" load -i "$ARCHIVE" >"$LOAD_OUT"
+fi
 if ! timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" image inspect "$IMAGE_REF" >/dev/null 2>&1; then
   cat "$LOAD_OUT" >&2 || true
   echo "Loaded archive did not provide expected image: $IMAGE_REF" >&2

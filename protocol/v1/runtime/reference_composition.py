@@ -37,6 +37,7 @@ from protocol.v1.runtime.native_knowledge_store import (
 )
 from protocol.v1.runtime.portfolio_checkpoint import (
     PortfolioCheckpointStore,
+    project_from_checkpoint_through_cursor,
     project_from_latest_checkpoint_through_cursor,
 )
 from protocol.v1.runtime.personal_data_store import PersonalDataStore
@@ -273,6 +274,8 @@ class _ConnectorWriteCoordinator:
             checkpoint_store=self.checkpoint_store,
             write_store=self.native_store,
         )
+        if result["status"] == "no_changes":
+            return result
         candidate = result["candidate"]
         review = result["review"]
         preview_id = str(candidate["candidate_id"])
@@ -281,7 +284,7 @@ class _ConnectorWriteCoordinator:
             "candidate": candidate,
             "confirmation": review["approval_phrase"],
             "portfolio_id": portfolio_id,
-            "base_checkpoint_id": self.checkpoint_store.latest(portfolio_id).get("checkpoint_id"),
+            "base_checkpoint_id": candidate["base_checkpoint_id"],
         })
         return {
             "status": "review_required",
@@ -293,6 +296,7 @@ class _ConnectorWriteCoordinator:
             "differences": review["differences"],
             "gaps": review["gaps"],
             "confirmation": review["approval_phrase"],
+            **({"reconciliation": review["reconciliation"]} if "reconciliation" in review else {}),
         }
 
     def apply_portfolio(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -316,10 +320,9 @@ class _ConnectorWriteCoordinator:
         )
         if current_cursor != candidate.get("journal_cursor"):
             raise ConnectorWriteRejected("preview_stale")
-        projection = project_from_latest_checkpoint_through_cursor(
-            self.checkpoint_store,
+        projection = project_from_checkpoint_through_cursor(
+            latest_checkpoint,
             self.native_store,
-            portfolio_id=portfolio_id,
             through_commit_id=current_cursor.get("through_commit_id"),
             generated_at=candidate.get("created_at"),
         )
@@ -358,11 +361,10 @@ class _ConnectorWriteCoordinator:
             write_store=self.native_store,
             approval_verifier=verify,
         )
-        latest = self.checkpoint_store.latest(portfolio_id)
-        read_back_projection = project_from_latest_checkpoint_through_cursor(
-            self.checkpoint_store,
+        committed = self.checkpoint_store.get(portfolio_id, result["checkpoint_id"])
+        read_back_projection = project_from_checkpoint_through_cursor(
+            committed,
             self.native_store,
-            portfolio_id=portfolio_id,
             through_commit_id=candidate.get("journal_cursor", {}).get("through_commit_id"),
             generated_at=candidate.get("snapshot_effective_at"),
         )
@@ -381,11 +383,10 @@ class _ConnectorWriteCoordinator:
             "checkpoint_id": result["checkpoint_id"],
             "accepted_at": result["accepted_at"],
             "read_back": {
-                "checkpoint_id": latest.get("checkpoint_id"),
-                "candidate_ref": latest.get("reconciliation_candidate_ref"),
+                "checkpoint_id": committed["checkpoint_id"],
+                "candidate_ref": committed.get("reconciliation_candidate_ref"),
                 "matches": (
-                    latest.get("checkpoint_id") == result["checkpoint_id"]
-                    and latest.get("reconciliation_candidate_ref") == candidate["candidate_id"]
+                    committed.get("reconciliation_candidate_ref") == candidate["candidate_id"]
                     and state_matches
                 ),
                 "state_digest": digest(read_back_portfolio) if isinstance(read_back_portfolio, dict) else None,

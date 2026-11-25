@@ -56,6 +56,7 @@ def _transaction_is_after_checkpoint(transaction: dict[str, Any], checkpoint: di
 
 def _checkpoint_identity_material(checkpoint: dict[str, Any]) -> dict[str, Any]:
     return {
+        **({"account_batch": checkpoint["account_batch"]} if "account_batch" in checkpoint else {}),
         "portfolio_id": checkpoint.get("portfolio_id"),
         "base_portfolio_digest": checkpoint.get("base_portfolio_digest"),
         "snapshot_effective_at": checkpoint.get("snapshot_effective_at"),
@@ -70,7 +71,8 @@ def _checkpoint_identity_material(checkpoint: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _strictly_after_timepoint(current: Any, previous: Any) -> bool:
+def checkpoint_time_is_later(current: Any, previous: Any) -> bool:
+    """Order snapshot times without guessing within a date-only observation."""
     current_point, _ = _point(current, code="checkpoint_effective_at_invalid")
     previous_point, _ = _point(previous, code="checkpoint_effective_at_invalid")
     current_raw = str(current["value"])
@@ -93,10 +95,108 @@ def _validate_checkpoint_record(checkpoint: dict[str, Any]) -> None:
         raise CheckpointError("checkpoint_base_portfolio_invalid")
     if digest(base) != checkpoint.get("base_portfolio_digest"):
         raise CheckpointError("checkpoint_base_digest_mismatch")
+    cursor = checkpoint.get("write_cursor")
+    if not isinstance(cursor, dict) or type(cursor.get("event_count")) is not int or cursor["event_count"] < 0:
+        raise CheckpointError("checkpoint_cursor_invalid")
+    if "account_batch" in checkpoint:
+        batch = checkpoint["account_batch"]
+        if (not isinstance(batch, dict) or set(batch) != {"account_id", "parent_checkpoint_id", "held_rows"}
+                or not isinstance(batch["account_id"], str) or not batch["account_id"]
+                or not isinstance(batch["parent_checkpoint_id"], str) or not batch["parent_checkpoint_id"]
+                or not isinstance(batch["held_rows"], dict)):
+            raise CheckpointError("checkpoint_batch_scope_invalid")
+        for row_key, scope in batch["held_rows"].items():
+            if (not isinstance(row_key, str) or not row_key.startswith(("position:", "cash:", "addition:"))
+                    or not isinstance(scope, dict) or set(scope) != {"reported", "disputed"}):
+                raise CheckpointError("checkpoint_batch_scope_invalid")
+            for fields in scope.values():
+                if (not isinstance(fields, list) or not fields or any(not isinstance(f, str) or not f for f in fields)
+                        or fields != sorted(set(fields))):
+                    raise CheckpointError("checkpoint_batch_scope_invalid")
+            if not set(scope["disputed"]).issubset(scope["reported"]):
+                raise CheckpointError("checkpoint_batch_scope_invalid")
     expected_id = "portfolio-checkpoint:" + digest(_checkpoint_identity_material(checkpoint))[:24]
     if checkpoint_id != expected_id:
         raise CheckpointError("checkpoint_identity_digest_mismatch")
     _point(checkpoint.get("snapshot_effective_at"), code="checkpoint_effective_at_invalid")
+
+
+def _is_legacy_reconciliation_correction(previous: dict[str, Any], checkpoint: dict[str, Any]) -> bool:
+    if ("account_batch" in previous or "account_batch" in checkpoint
+            or checkpoint.get("source_kind") != "reconciliation"
+            or checkpoint["snapshot_effective_at"] != previous["snapshot_effective_at"]
+            or checkpoint["write_cursor"] != previous["write_cursor"]
+            or checkpoint["base_portfolio_digest"] == previous["base_portfolio_digest"]):
+        return False
+    try:
+        return checkpoint_time_is_later(checkpoint.get("created_at"), previous.get("created_at"))
+    except CheckpointError:
+        return False
+
+
+def _validate_checkpoint_successor(
+    previous: dict[str, Any] | None, checkpoint: dict[str, Any], *, allow_legacy_correction: bool = False,
+) -> None:
+    batch = checkpoint.get("account_batch")
+    if batch is not None:
+        if (previous is None or checkpoint["source_kind"] != "reconciliation"
+                or batch.get("parent_checkpoint_id") != previous["checkpoint_id"]
+                or not checkpoint.get("acceptance_verification_ref") or not checkpoint.get("reconciliation_candidate_ref")):
+            raise CheckpointError("checkpoint_batch_parent_invalid")
+    if previous is None:
+        return
+    if checkpoint["write_cursor"]["event_count"] < previous["write_cursor"]["event_count"]:
+        raise CheckpointError("checkpoint_cursor_regression")
+    if checkpoint_time_is_later(checkpoint["snapshot_effective_at"], previous["snapshot_effective_at"]):
+        return
+    # Older runtimes persisted same-time reconciliations without held-row metadata.
+    if allow_legacy_correction and _is_legacy_reconciliation_correction(previous, checkpoint):
+        return
+    # A new same-observation successor consumes held rows from its direct predecessor.
+    prior = previous.get("account_batch")
+    if (not batch or not prior or checkpoint["snapshot_effective_at"] != previous["snapshot_effective_at"]
+            or checkpoint["source_ref"] != previous["source_ref"] or checkpoint["write_cursor"] != previous["write_cursor"]
+            or batch["account_id"] != prior["account_id"]):
+        raise CheckpointError("checkpoint_effective_at_not_increasing")
+    held, remaining = prior["held_rows"], batch["held_rows"]
+    if not (remaining.keys() < held.keys()) or any(held[key] != value for key, value in remaining.items()):
+        raise CheckpointError("checkpoint_batch_scope_invalid")
+    _validate_revision_state(previous, checkpoint, held.keys() - remaining.keys(), batch["account_id"])
+
+
+def _validate_revision_state(
+    previous: dict[str, Any], checkpoint: dict[str, Any], resolved: set[str], account_id: str,
+) -> None:
+    """A same-observation revision may only update the rows it consumes."""
+    code = "checkpoint_batch_scope_invalid"
+    before = previous["base_portfolio"]
+    after = checkpoint["base_portfolio"]
+    if ({key: value for key, value in before.items() if key not in {"positions", "cash"}}
+            != {key: value for key, value in after.items() if key not in {"positions", "cash"}}):
+        raise CheckpointError(code)
+    if any(previous[field] != checkpoint[field] for field in ("cash_basis_refs", "short_allowed_account_ids")):
+        raise CheckpointError(code)
+    for collection, domain, id_field in (("positions", "position", "position_id"), ("cash", "cash", "cash_id")):
+        old = {row[id_field]: row for row in before[collection]}
+        new = {row[id_field]: row for row in after[collection]}
+        if not old.keys() <= new.keys() or len(new) != len(after[collection]):
+            raise CheckpointError(code)
+        for row_id, row in new.items():
+            if old.get(row_id) == row:
+                continue
+            if (row.get("account_id") != account_id or row.get("observed_at") != checkpoint["snapshot_effective_at"]
+                    or checkpoint["source_ref"] not in row.get("source_evidence", [])):
+                raise CheckpointError(code)
+            if row_id in old:
+                key = f"{domain}:{row_id}"
+                if old[row_id].get("account_id") != account_id:
+                    raise CheckpointError(code)
+            elif domain == "position":
+                key = f"addition:{row['asset'].get('symbol')}"
+            else:
+                raise CheckpointError(code)
+            if key not in resolved:
+                raise CheckpointError(code)
 
 
 def validate_checkpoint_journal_rows(
@@ -149,15 +249,7 @@ def validate_checkpoint_journal_rows(
 
         portfolio_id = str(checkpoint["portfolio_id"])
         previous = previous_by_portfolio.get(portfolio_id)
-        if previous is not None:
-            if not _strictly_after_timepoint(
-                checkpoint.get("snapshot_effective_at"), previous.get("snapshot_effective_at")
-            ):
-                raise CheckpointError("checkpoint_effective_at_not_increasing")
-            previous_count = int(previous.get("write_cursor", {}).get("event_count", -1))
-            current_count = int(cursor.get("event_count", -1))
-            if current_count < previous_count:
-                raise CheckpointError("checkpoint_cursor_regression")
+        _validate_checkpoint_successor(previous, checkpoint, allow_legacy_correction=True)
         previous_by_portfolio[portfolio_id] = checkpoint
     return len(rows)
 
@@ -175,6 +267,7 @@ class PortfolioCheckpointStore:
         if not self.journal_path.exists():
             return []
         rows: list[dict[str, Any]] = []
+        previous_by_portfolio: dict[str, dict[str, Any]] = {}
         with self.journal_path.open("r", encoding="utf-8") as handle:
             for line_number, raw in enumerate(handle, start=1):
                 line = raw.strip()
@@ -187,6 +280,11 @@ class PortfolioCheckpointStore:
                 if not isinstance(row, dict):
                     raise CheckpointError(f"checkpoint_journal_invalid_line_{line_number}")
                 _validate_checkpoint_record(row)
+                portfolio_id = row["portfolio_id"]
+                _validate_checkpoint_successor(
+                    previous_by_portfolio.get(portfolio_id), row, allow_legacy_correction=True,
+                )
+                previous_by_portfolio[portfolio_id] = row
                 rows.append(row)
         ids = [str(row["checkpoint_id"]) for row in rows]
         if len(ids) != len(set(ids)):
@@ -204,9 +302,16 @@ class PortfolioCheckpointStore:
             raise CheckpointError("checkpoint_not_found")
         return matches[-1]
 
-    def append(self, checkpoint: dict[str, Any]) -> None:
+    def get(self, portfolio_id: str, checkpoint_id: str) -> dict[str, Any]:
+        for row in self.read_all():
+            if row["portfolio_id"] == portfolio_id and row["checkpoint_id"] == checkpoint_id:
+                return row
+        raise CheckpointError("checkpoint_not_found")
+
+    def append(self, checkpoint: dict[str, Any], *, expected_checkpoint_id: str | None = None) -> None:
         if self.read_only:
             raise PermissionError("Read-only checkpoints cannot be changed")
+        _validate_checkpoint_record(checkpoint)
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         fd = os.open(self.lock_path, os.O_RDWR | os.O_CREAT, 0o600)
         with os.fdopen(fd, "r+") as lock_file:
@@ -216,6 +321,12 @@ class PortfolioCheckpointStore:
                 checkpoint_id = str(checkpoint.get("checkpoint_id") or "")
                 if not checkpoint_id or any(row.get("checkpoint_id") == checkpoint_id for row in rows):
                     raise CheckpointError("checkpoint_identity_conflict")
+                previous = next((row for row in reversed(rows) if row["portfolio_id"] == checkpoint["portfolio_id"]), None)
+                if expected_checkpoint_id is not None and (
+                    previous is None or previous["checkpoint_id"] != expected_checkpoint_id
+                ):
+                    raise CheckpointError("preview_stale")
+                _validate_checkpoint_successor(previous, checkpoint)
                 encoded = (canonical_json(checkpoint) + "\n").encode("utf-8")
                 out_fd = os.open(self.journal_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
                 try:
@@ -245,6 +356,7 @@ def build_checkpoint(
     cash_basis_refs: Iterable[dict[str, Any]] | None = None,
     short_allowed_account_ids: Iterable[str] | None = None,
     created_at: dict[str, Any] | None = None,
+    account_batch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(base_portfolio, dict) or base_portfolio.get("protocol_version") != PROTOCOL_VERSION:
         raise CheckpointError("checkpoint_base_portfolio_invalid")
@@ -265,6 +377,7 @@ def build_checkpoint(
     base_digest = digest(base_portfolio)
     created = copy.deepcopy(created_at or timepoint())
     checkpoint = {
+        **({"account_batch": copy.deepcopy(account_batch)} if account_batch is not None else {}),
         "protocol_version": PROTOCOL_VERSION,
         "checkpoint_version": 1,
         "checkpoint_id": "",
@@ -289,6 +402,8 @@ def persist_checkpoint(
     checkpoint_store: PortfolioCheckpointStore,
     write_store: NativeWriteStore,
     checkpoint: dict[str, Any],
+    *,
+    expected_checkpoint_id: str | None = None,
 ) -> None:
     _validate_checkpoint_record(checkpoint)
     cursor = checkpoint.get("write_cursor")
@@ -306,8 +421,6 @@ def persist_checkpoint(
     existing = [row for row in checkpoint_store.read_all() if row.get("portfolio_id") == checkpoint.get("portfolio_id")]
     if existing:
         previous = existing[-1]
-        if not _strictly_after_timepoint(checkpoint.get("snapshot_effective_at"), previous.get("snapshot_effective_at")):
-            raise CheckpointError("checkpoint_effective_at_not_increasing")
         previous_cursor = previous.get("write_cursor")
         if not isinstance(previous_cursor, dict):
             raise CheckpointError("checkpoint_cursor_invalid")
@@ -323,7 +436,7 @@ def persist_checkpoint(
         current_count = int(cursor.get("event_count", -1))
         if current_count < previous_count:
             raise CheckpointError("checkpoint_cursor_regression")
-    checkpoint_store.append(checkpoint)
+    checkpoint_store.append(checkpoint, expected_checkpoint_id=expected_checkpoint_id)
 
 
 def bind_reconciliation_acceptance(
@@ -415,8 +528,27 @@ def project_from_latest_checkpoint_through_cursor(
 ) -> dict[str, Any]:
     """Project the latest checkpoint through one explicit later journal cursor."""
 
-    checkpoint = checkpoint_store.latest(portfolio_id)
+    return project_from_checkpoint_through_cursor(
+        checkpoint_store.latest(portfolio_id),
+        write_store,
+        through_commit_id=through_commit_id,
+        generated_at=generated_at,
+        identity_scope_account_ids=identity_scope_account_ids,
+    )
+
+
+def project_from_checkpoint_through_cursor(
+    checkpoint: dict[str, Any],
+    write_store: NativeWriteStore,
+    *,
+    through_commit_id: str | None,
+    generated_at: dict[str, Any] | None = None,
+    identity_scope_account_ids: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Project an identified checkpoint even if a successor has been saved."""
+
     _validate_checkpoint_record(checkpoint)
+    portfolio_id = checkpoint["portfolio_id"]
     cursor = checkpoint.get("write_cursor")
     if not isinstance(cursor, dict):
         raise CheckpointError("checkpoint_cursor_invalid")

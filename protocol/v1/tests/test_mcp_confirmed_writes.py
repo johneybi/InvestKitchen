@@ -208,6 +208,100 @@ def test_listed_holding_addition_is_reviewable_and_requires_browser_approval(set
     assert row["quantity"] is None and row["valuation"]["market_value"] == 280
 
 
+@pytest.mark.parametrize("statement", [False, True], ids=["reported-quantity", "one-statement"])
+def test_manual_update_uses_existing_trusted_approval_and_read_back(setup, statement):
+    client, headers, writes, _, _ = setup
+    scope = {"portfolio_id": "portfolio-alpha"}
+    before = _call(client, headers, "get_portfolio_state", scope)["structuredContent"]["data"]
+    position = next(row for row in before["positions"] if row["asset"]["symbol"] == "005930")
+    update = _narrow_request()
+    update.pop("created_at")
+    update["changes"] = {"position_observations": [
+        {"account_id": position["account_id"], "position_id": position["position_id"], "quantity": 12},
+    ]}
+    if statement:
+        update.update(reconcile_account_id=position["account_id"], source_ref="user-observation:statement:synthetic")
+        update["changes"]["cash_amounts"] = [{"cash_id": before["cash"][0]["cash_id"], "amount": 800}]
+    preview = _call(client, headers, "preview_portfolio_update", {"update": update})["structuredContent"]
+    assert preview["status"] == "review_required" and preview["snapshot_effective_at"] == update["snapshot_effective_at"]
+    if statement:
+        assert preview["reconciliation"]["unconfirmed"] == [
+            {"position_id": "position:000660", "reason": "not_observed"},
+        ]
+    approval = {key: preview[key] for key in ("preview_id", "confirmation")}
+    assert _call(client, headers, "apply_portfolio_update", approval)["isError"]
+    unchanged = _call(client, headers, "get_portfolio_state", scope)["structuredContent"]["data"]
+    assert unchanged["positions"] == before["positions"]
+    _approve(client, preview)
+    applied = _call(client, headers, "apply_portfolio_update", approval)["structuredContent"]
+    assert applied["status"] == "applied" and applied["read_back"]["matches"]
+
+    after = _call(client, headers, "get_portfolio_state", scope)["structuredContent"]["data"]
+    by_id = {row["position_id"]: row for row in after["positions"]}
+    assert by_id[position["position_id"]]["quantity"] == 12
+    assert all(by_id[row["position_id"]] == row for row in before["positions"] if row != position)
+    if statement:
+        assert after["cash"][0]["value"]["amount"] == 800
+        pending_count = len(writes.pending)
+        replay = _call(client, headers, "preview_portfolio_update", {"update": update})["structuredContent"]
+        assert replay["status"] == "no_changes" and "approval_url" not in replay
+        assert len(writes.pending) == pending_count
+
+
+def test_each_followup_on_held_rows_requires_its_own_browser_approval(setup):
+    client, headers, writes, _, _ = setup
+    scope = {"portfolio_id": "portfolio-alpha"}
+    before = _call(client, headers, "get_portfolio_state", scope)["structuredContent"]["data"]
+    update = _narrow_request()
+    update.pop("created_at")
+    update["reconcile_account_id"] = "account-alpha"
+    cash_id = before["cash"][0]["cash_id"]
+    saved_amount = before["cash"][0]["value"]["amount"]
+
+    def preview(changes):
+        result = _call(client, headers, "preview_portfolio_update", {"update": {**update, "changes": changes}})
+        return result["structuredContent"]
+
+    def approve_and_read_back(review, *, prior_confirmation=None):
+        args = {key: review[key] for key in ("preview_id", "confirmation")}
+        assert _call(client, headers, "apply_portfolio_update", args)["isError"]
+        _approve(client, review)
+        if prior_confirmation is not None:
+            assert _call(client, headers, "apply_portfolio_update", {**args, "confirmation": prior_confirmation})["isError"]
+        outcome = _call(client, headers, "apply_portfolio_update", args)["structuredContent"]
+        assert outcome["status"] == "applied" and outcome["read_back"]["matches"]
+        assert _call(client, headers, "apply_portfolio_update", args)["isError"]
+        return outcome["checkpoint_id"]
+
+    position = {"account_id": "account-alpha", "symbol": "000660"}
+    statement = preview({"position_observations": [
+        {"account_id": "account-alpha", "symbol": "005930", "quantity": 12},
+        {**position, "quantity": 4}, {**position, "quantity": 14}],
+        "cash_amounts": [{"cash_id": cash_id, "amount": amount} for amount in (saved_amount, saved_amount + 1)]})
+    assert len(statement["reconciliation"]["unconfirmed"]) == 2
+    initial_id = approve_and_read_back(statement)
+    # Resolving a disputed cash row to the saved value consumes it as well.
+    cash = {"cash_amounts": [{"cash_id": cash_id, "amount": saved_amount}]}
+    cash_review = preview(cash)
+    assert cash_review["reconciliation"]["resolved"] == [{"cash_id": cash_id, "fields": ["amount"]}]
+    assert cash_review["reconciliation"]["unconfirmed"] == [
+        {"position_id": "position:000660", "reason": "conflicting_values", "fields": ["quantity"]},
+    ]
+    cash_id_after = approve_and_read_back(cash_review, prior_confirmation=statement["confirmation"])
+    assert preview(cash)["status"] == "no_changes"
+    quantity_review = preview({"position_observations": [{**position, "quantity": 14}]})
+    position_id_after = approve_and_read_back(quantity_review, prior_confirmation=cash_review["confirmation"])
+    assert len({initial_id, cash_id_after, position_id_after}) == 3
+    after = _call(client, headers, "get_portfolio_state", scope)["structuredContent"]["data"]
+    assert {row["asset"]["symbol"]: row["quantity"] for row in after["positions"]} == {"005930": 12, "000660": 14}
+    assert after["cash"][0]["value"]["amount"] == saved_amount
+    assert after["cash"][0]["observed_at"] == update["snapshot_effective_at"]
+    approvals = [json.loads(line) for line in (writes.audit_root / "browser-confirmations.jsonl").read_text().splitlines()]
+    assert {row["preview_id"] for row in approvals if row["event"] == "authenticated_browser_approve"} == {
+        statement["preview_id"], cash_review["preview_id"], quantity_review["preview_id"],
+    }
+
+
 def test_write_discovery_requires_server_grant_and_write_scope(setup, signing_key):
     client, headers, _, _, _ = setup
     tools = _post(client, "tools/list", headers=headers).json()["result"]["tools"]

@@ -118,6 +118,9 @@ def main(argv: list[str] | None = None) -> int:
                 checkpoint_store=checkpoint_store,
                 write_store=write_store,
             )
+            if result["status"] == "no_changes":
+                sys.stdout.write(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+                return 0
             _write_private_candidate(args.candidate_out, result["candidate"])
             sys.stdout.write(json.dumps(result["review"], ensure_ascii=False, indent=2) + "\n")
             return 0

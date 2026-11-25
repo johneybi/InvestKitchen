@@ -25,6 +25,7 @@ from protocol.v1.runtime.portfolio_checkpoint import (  # noqa: E402
     build_checkpoint,
     persist_checkpoint,
     project_from_latest_checkpoint,
+    validate_checkpoint_journal_rows,
 )
 
 
@@ -327,6 +328,39 @@ def test_checkpoint_store_is_append_only_and_latest_is_last_persisted(tmp_path: 
     persist_checkpoint(checkpoint_store, write_store, second)
     assert checkpoint_store.latest("portfolio-alpha")["checkpoint_id"] == second["checkpoint_id"]
     assert len(checkpoint_store.read_all()) == 2
+
+
+def test_legacy_same_time_reconciliation_remains_readable(tmp_path: Path) -> None:
+    writes = NativeWriteStore(tmp_path / "native-write")
+    store = PortfolioCheckpointStore(tmp_path / "checkpoints")
+    observed_at = _tp("2026-09-16T10:00:00Z")
+    base = _base()
+    first = build_checkpoint(
+        base, writes, snapshot_effective_at=observed_at, through_commit_id=None,
+        source_kind="migration_import", created_at=_tp("2026-09-16T10:01:00Z"),
+    )
+    persist_checkpoint(store, writes, first)
+
+    base["positions"][0]["quantity"] = 12
+    correction = build_checkpoint(
+        base, writes, snapshot_effective_at=observed_at, through_commit_id=None,
+        source_kind="reconciliation", created_at=_tp("2026-09-16T10:02:00Z"),
+    )
+    with pytest.raises(CheckpointError, match="checkpoint_effective_at_not_increasing"):
+        persist_checkpoint(store, writes, correction)
+
+    with store.journal_path.open("a", encoding="utf-8") as journal:
+        journal.write(canonical_json(correction) + "\n")
+    assert validate_checkpoint_journal_rows([first, correction], []) == 2
+    assert store.latest("portfolio-alpha") == correction
+
+    base["positions"][0]["quantity"] = 13
+    later = build_checkpoint(
+        base, writes, snapshot_effective_at=_tp("2026-09-16T11:00:00Z"), through_commit_id=None,
+        source_kind="manual_snapshot", created_at=_tp("2026-09-16T11:01:00Z"),
+    )
+    persist_checkpoint(store, writes, later)
+    assert store.latest("portfolio-alpha") == later
 
 
 def test_checkpoint_record_tamper_and_transaction_resource_mismatch_fail_closed(tmp_path: Path) -> None:

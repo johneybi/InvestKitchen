@@ -1,0 +1,75 @@
+name: Synology release
+run-name: Synology ${{ inputs.target }} ${{ inputs.source_sha }} from ${{ inputs.rollback_from }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Synology service
+        type: choice
+        options: [core]
+        required: true
+      source_sha:
+        description: Reviewed 40-character Git SHA reachable from main
+        type: string
+        required: true
+      rollback_from:
+        description: Verified running Core source SHA
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synology-release-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  select:
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.validate.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: validate
+        env:
+          TARGET: ${{ inputs.target }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          ROLLBACK_FROM: ${{ inputs.rollback_from }}
+          RELEASE_ACTOR_IDS: ${{ vars.SYNOLOGY_RELEASE_ACTOR_IDS }}
+          RELEASE_ACTOR_ID: ${{ github.actor_id }}
+        run: python deploy/synology/build-release.py select
+
+  ci:
+    needs: select
+    uses: ./.github/workflows/test.yml
+    with:
+      source_sha: ${{ needs.select.outputs.source_sha }}
+
+  package:
+    needs: [select, ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - run: docker buildx create --driver docker-container --use
+      - env:
+          TARGET: ${{ inputs.target }}
+          SOURCE_SHA: ${{ needs.select.outputs.source_sha }}
+          ROLLBACK_FROM: ${{ inputs.rollback_from }}
+          RELEASE_ACTOR_IDS: ${{ vars.SYNOLOGY_RELEASE_ACTOR_IDS }}
+          RELEASE_ACTOR_ID: ${{ github.actor_id }}
+        run: python deploy/synology/build-release.py package "$RUNNER_TEMP/synology-release"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: synology-${{ inputs.target }}
+          path: ${{ runner.temp }}/synology-release/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30

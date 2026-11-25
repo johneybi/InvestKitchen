@@ -11,15 +11,18 @@ import jsonschema
 import pytest
 
 from protocol.v1.adapters.common import public_reference
-from protocol.v1.runtime import portfolio_reconciliation, portfolio_update_service
+from protocol.v1.runtime import portfolio_reconciliation, portfolio_update_service, reference_composition
 from protocol.v1.runtime.native_write_store import NativeWriteStore
 from protocol.v1.runtime.portfolio_checkpoint import (
-    PortfolioCheckpointStore, build_checkpoint, persist_checkpoint,
+    CheckpointError, PortfolioCheckpointStore, build_checkpoint, persist_checkpoint, validate_checkpoint_journal_rows,
 )
-from protocol.v1.runtime.portfolio_update_service import PortfolioUpdateError, build_portfolio_update_preview
+from protocol.v1.runtime.portfolio_update_service import (
+    PortfolioUpdateError, accept_portfolio_update, build_portfolio_update_preview, new_approval,
+)
 from protocol.v1.runtime.reference_composition import build_reference_gateway
 from protocol.v1.tests.test_mcp_write_surface import PROTOCOL, ROOT, _call, _grant, _principal, _server
-from protocol.v1.tests.test_portfolio_update_service import _narrow_request, _portfolio, _stores, _tp
+from protocol.v1.tests.test_portfolio_checkpoint import _validate
+from protocol.v1.tests.test_portfolio_update_service import _narrow_request, _portfolio, _position, _stores, _tp
 from protocol.v1.transport.stdio_rpc import load_tool_catalog
 from protocol.v1.transport.mcp_stdio import TradeMindMCPServer
 
@@ -100,6 +103,291 @@ def test_manual_observations_without_created_at_apply_through_mcp_and_persist(tm
     assert row["valuation"]["profit_loss"] == -103
     assert portfolio["cash"][0]["value"]["amount"] == 820
     assert next(row for row in portfolio["positions"] if row["asset"]["symbol"] == "000660")["quantity"] == 3
+
+
+def test_reported_quantity_only_previews_removals_and_preserves_other_observations(tmp_path):
+    base = _portfolio()
+    original_time = _tp("2026-09-17T00:00:00Z")
+    for position in base["positions"]:
+        position["observed_at"] = original_time
+        position["cost_basis_values"] = [_money(1000)]
+        position["avg_cost_values"] = [_money(100)]
+        position["valuation"] = {"currency": "KRW", "value_basis": "observed", "market_value": 900}
+    base["positions"][0]["asset"]["display_name"] = "A"
+    _seed(tmp_path, base)
+    server = _existing_server(tmp_path)
+    scope = {"portfolio_id": "portfolio-alpha"}
+    current = _call(server, "get_portfolio_state", scope, request_id="quantity-current")["data"]
+    a = next(row for row in current["positions"] if row["asset"]["display_name"] == "A")
+    update = _manual_request()
+    update["source_ref"] = "user-observation:chat:quantity-fixture"
+    update["changes"] = {"position_observations": [
+        {"account_id": a["account_id"], "position_id": a["position_id"], "quantity": 12},
+    ]}
+    preview = _call(server, "preview_portfolio_update", {"update": update}, request_id="quantity-preview")
+    assert preview["snapshot_effective_at"] == update["snapshot_effective_at"]
+    difference, = preview["differences"]
+    fields = {change["field"]: change for change in difference["field_changes"]}
+    assert fields["quantity"] == {"field": "quantity", "current": 10, "observed": 12}
+    assert all(fields[field]["observed"] is None for field in ("cost_basis_values", "avg_cost_values", "valuation"))
+
+    approval = {key: preview[key] for key in ("preview_id", "confirmation")}
+    result = _call(server, "apply_portfolio_update", approval, request_id="quantity-approved")
+    assert result["status"] == "applied" and result["read_back"]["matches"]
+    stored = _call(_existing_server(tmp_path), "get_portfolio_state", scope, request_id="quantity-read-back")["data"]
+    by_id = {row["position_id"]: row for row in stored["positions"]}
+    recorded = by_id[a["position_id"]]
+    assert recorded["quantity"] == 12 and recorded["observed_at"] == preview["snapshot_effective_at"]
+    assert not {"cost_basis_values", "avg_cost_values", "valuation"} & recorded.keys()
+    assert all(by_id[row["position_id"]] == row for row in current["positions"] if row != a)
+    assert stored["cash"] == current["cash"] and stored["transactions"] == current["transactions"]
+
+
+def _comparison_portfolio():
+    base = _portfolio()
+    other_account = {**base["accounts"][0], "account_id": "account-beta", "display_name": "Synthetic Other"}
+    base["accounts"].append(other_account)
+    base["positions"].extend([
+        _position("MISSING", 7),
+        {**_position("005930", 99), "account_id": "account-beta", "position_id": "position:other-005930"},
+    ])
+    base["cash"].append({**base["cash"][0], "account_id": "account-beta", "cash_id": "cash-beta"})
+    for position in base["positions"]:
+        position["observed_at"] = _tp("2026-09-17T00:00:00Z")
+    return base
+
+
+def test_account_comparison_merges_extracted_rows_and_reports_conflicts_without_double_apply(tmp_path):
+    _seed(tmp_path, _comparison_portfolio())
+    server = _existing_server(tmp_path)
+    scope = {"portfolio_id": "portfolio-alpha"}
+    current = _call(server, "get_portfolio_state", scope, request_id="comparison-current")["data"]
+    update = _manual_request()
+    update.update(reconcile_account_id="account-alpha", source_ref="user-observation:screens:synthetic")
+    # Two extracted fragments. The second screen ends before MISSING becomes visible.
+    first, second = [
+        {"account_id": "account-alpha", "symbol": "005930", "quantity": 12,
+         "valuation": {"value_basis": "observed", "currency": "KRW", "last_price": 90}},
+        {"account_id": "account-alpha", "symbol": "000660", "quantity": 4,
+         "valuation": {"currency": "KRW", "value_basis": "observed", "market_value": 500}},
+    ], [
+        {"account_id": "account-alpha", "position_id": "position:005930", "quantity": 12,
+         "valuation": {"value_basis": "observed", "currency": "KRW", "market_value": 1080}},
+        {"account_id": "account-alpha", "symbol": "000660", "quantity": 14},
+    ]
+    update["changes"] = {
+        "position_observations": first + second,
+        "position_additions": [_addition(), _addition()],
+        "cash_amounts": [{"cash_id": "cash-alpha", "amount": 820}] * 2,
+    }
+    preview = _call(server, "preview_portfolio_update", {"update": update}, request_id="comparison-preview")
+    assert preview["summary"]["position_changes"] == 2
+    assert preview["summary"]["cash_changes"] == 1
+    assert len(preview["differences"]) == 3
+    unconfirmed = preview["reconciliation"]["unconfirmed"]
+    assert unconfirmed == [
+        {"position_id": "position:000660", "reason": "conflicting_values", "fields": ["quantity"],
+         "rows": [{"collection": "position_observations", "index": 2},
+                  {"collection": "position_observations", "index": 4}]},
+        {"position_id": "position:MISSING", "reason": "not_observed"},
+    ]
+    assert not any(diff["change_type"] == "removed" for diff in preview["differences"])
+    approval = {key: preview[key] for key in ("preview_id", "confirmation")}
+    result = _call(server, "apply_portfolio_update", approval, request_id="comparison-apply")
+    assert result["status"] == "applied" and result["read_back"]["matches"]
+    fresh = _existing_server(tmp_path)
+    stored = _call(fresh, "get_portfolio_state", scope, request_id="comparison-read-back")["data"]
+    by_id = {row["position_id"]: row for row in stored["positions"]}
+    updated = by_id["position:005930"]
+    assert updated["quantity"] == 12
+    assert updated["valuation"]["market_value"] == 1080 and updated["valuation"]["last_price"] == 90
+    assert sum(row["asset"]["symbol"] == "0123X0" for row in stored["positions"]) == 1
+    assert all(by_id[row["position_id"]] == row for row in current["positions"] if row["position_id"] != "position:005930")
+    assert {row["cash_id"]: row["value"]["amount"] for row in stored["cash"]} == {"cash-alpha": 820, "cash-beta": 1000}
+    assert stored["transactions"] == current["transactions"]
+
+    replay = _call(fresh, "preview_portfolio_update", {"update": update}, request_id="comparison-resubmit")
+    assert replay["status"] == "no_changes" and replay["differences"] == []
+    assert replay["reconciliation"]["unconfirmed"] == unconfirmed and "preview_id" not in replay
+    stores = NativeWriteStore(tmp_path / "native-write"), PortfolioCheckpointStore(tmp_path / "checkpoints")
+    stale = copy.deepcopy(update)
+    for index in (0, 2):
+        stale["changes"]["position_observations"][index]["quantity"] = 13
+    with pytest.raises(PortfolioUpdateError, match="checkpoint_effective_at_not_increasing"):
+        _preview(stale, stores)
+    assert len(stores[1].read_all()) == 2
+
+    # Correct just the disputed row after reconnecting, using the actual time
+    # on the original statement. A missing holding is not a disputed row.
+    corrected = {**update, "changes": {"position_observations": [
+        {"account_id": "account-alpha", "symbol": "000660", "quantity": 14},
+    ]}}
+    for other in (
+        {**corrected, "source_ref": "user-observation:other"},
+        {**corrected, "changes": {"position_observations": [
+            {"account_id": "account-alpha", "symbol": "MISSING", "quantity": 9}]}},
+        {**corrected, "reconcile_account_id": "account-beta", "changes": {"position_observations": [
+            {"account_id": "account-beta", "symbol": "005930", "quantity": 14}]}},
+    ):
+        with pytest.raises(PortfolioUpdateError, match="checkpoint_effective_at_not_increasing"):
+            _preview(other, stores)
+    extra = copy.deepcopy(corrected)
+    extra["changes"]["position_observations"][0]["valuation"] = {
+        "last_price": 90, "currency": "KRW", "value_basis": "observed"}
+    with pytest.raises(PortfolioUpdateError, match="portfolio_update_held_row_fields_mismatch"):
+        _preview(extra, stores)
+    competing = _preview(corrected, stores)["candidate"]["checkpoint_draft"]
+    later = _manual_request()
+    later["snapshot_effective_at"] = _tp("2026-09-17T02:00:00Z")
+    later["changes"] = {"position_observations": [
+        {"account_id": "account-alpha", "symbol": "005930", "quantity": 13},
+    ]}
+    stale_later = _preview(later, stores)["candidate"]
+    correction = _call(fresh, "preview_portfolio_update", {"update": corrected}, request_id="resolve-preview")
+    assert correction["reconciliation"]["resolved"] == [{"position_id": "position:000660", "fields": ["quantity"]}]
+    assert len(stores[1].read_all()) == 2
+    applied = _call(fresh, "apply_portfolio_update", {key: correction[key] for key in ("preview_id", "confirmation")},
+                    request_id="resolve-approved")
+    assert applied["status"] == "applied" and applied["read_back"]["matches"]
+    reader = _existing_server(tmp_path)
+    after = _call(reader, "get_portfolio_state", scope, request_id="resolve-read")["data"]
+    for row in after["positions"]:
+        if row["position_id"] == "position:000660":
+            assert row["quantity"] == 14 and row["observed_at"] == update["snapshot_effective_at"]
+            assert update["source_ref"] in row["source_evidence"]
+        else:
+            assert row == by_id[row["position_id"]]
+    assert after["cash"] == stored["cash"] and after["transactions"] == stored["transactions"]
+    assert _call(reader, "preview_portfolio_update", {"update": corrected}, request_id="resolve-replay")["status"] == "no_changes"
+    history = stores[1].read_all()
+    assert len(history) == validate_checkpoint_journal_rows(history, []) == 3
+    for checkpoint in history[1:]:
+        _validate(checkpoint, "portfolio-checkpoint.schema.json")
+    assert history[1]["snapshot_effective_at"] == history[2]["snapshot_effective_at"]
+    assert history[2]["account_batch"] == {"parent_checkpoint_id": history[1]["checkpoint_id"],
+                                           "account_id": "account-alpha", "held_rows": {}}
+    assert history[1]["acceptance_verification_ref"] != history[2]["acceptance_verification_ref"]
+    assert history[1]["base_portfolio"]["completeness"] == history[2]["base_portfolio"]["completeness"]
+    assert history[1]["base_portfolio"]["migration_gaps"] == history[2]["base_portfolio"]["migration_gaps"]
+    with pytest.raises(PortfolioUpdateError, match="preview_stale"):
+        accept_portfolio_update(
+            stale_later, new_approval(stale_later, approval_ref="synthetic:stale-later"),
+            checkpoint_store=stores[1], write_store=stores[0],
+            approval_verifier=lambda *_: {"verified": True, "verification_ref": "synthetic:test-approval"},
+        )
+    forged = copy.deepcopy(history[2]["base_portfolio"])
+    next(row for row in forged["positions"] if row["position_id"] == "position:005930")["quantity"] = 99
+    forged_checkpoint = build_checkpoint(
+        forged, stores[0], snapshot_effective_at=history[2]["snapshot_effective_at"],
+        through_commit_id=None, source_kind="reconciliation", source_ref=history[2]["source_ref"],
+        reconciliation_candidate_ref="synthetic:forged-preview", acceptance_verification_ref="synthetic:forged-approval",
+        account_batch=history[2]["account_batch"],
+    )
+    with pytest.raises(CheckpointError, match="checkpoint_batch_scope_invalid"):
+        validate_checkpoint_journal_rows([*history[:2], forged_checkpoint], [])
+    with pytest.raises(CheckpointError, match="checkpoint_batch_parent_invalid"):
+        persist_checkpoint(stores[1], stores[0], portfolio_reconciliation.bind_reconciliation_acceptance(
+            competing, candidate_ref="synthetic:other-preview", verification_ref="synthetic:other-approval"))
+
+
+def test_same_day_revisions_read_back_by_checkpoint_even_after_another_correction(tmp_path, monkeypatch):
+    base = _comparison_portfolio()
+    original = next(row for row in base["positions"] if row["asset"]["symbol"] == "000660")
+    original["quantity_basis"] = "user_confirmation"
+    _, checkpoints = _seed(tmp_path, base)
+    update = _manual_request()
+    observed_at = {"value": "2026-09-18", "precision": "date_only"}
+    update.update(reconcile_account_id="account-alpha", source_ref="user-observation:screens:date-only",
+                  snapshot_effective_at=observed_at)
+    held = {"account_id": "account-alpha", "position_id": original["position_id"]}
+    initial = {**update, "changes": {
+        "position_observations": [
+            {"account_id": "account-alpha", "symbol": "005930", "quantity": 12},
+            {**held, "quantity": 3}, {**held, "quantity": 4},
+        ],
+        "cash_amounts": [{"cash_id": "cash-alpha", "amount": amount} for amount in (1000, 1100)],
+    }}
+
+    def preview(server, request, label):
+        return _call(server, "preview_portfolio_update", {"update": request}, request_id=label)
+
+    def apply(server, review, label):
+        payload = {key: review[key] for key in ("preview_id", "confirmation")}
+        return _call(server, "apply_portfolio_update", payload, request_id=label)
+
+    server = _existing_server(tmp_path)
+    assert apply(server, preview(server, initial, "initial-preview"), "initial-apply")["read_back"]["matches"]
+    server = _existing_server(tmp_path)
+    revised = {**update, "changes": {"position_observations": [{**held, "quantity": 3}]}}
+    review = preview(server, revised, "position-preview")
+    assert review["reconciliation"]["unconfirmed"] == [
+        {"cash_id": "cash-alpha", "reason": "conflicting_values", "fields": ["amount"]},
+    ]
+    assert {field["field"] for diff in review["differences"] for field in diff["field_changes"]} == {
+        "observed_at", "source_evidence",
+    }
+
+    original_accept = reference_composition.accept_portfolio_update
+
+    def accept_while_other_session_advances(candidate, *args, **kwargs):
+        result = original_accept(candidate, *args, **kwargs)
+        if candidate["candidate_id"] == review["preview_id"]:
+            second_session = _existing_server(tmp_path)
+            cash_update = {**update, "changes": {"cash_amounts": [{"cash_id": "cash-alpha", "amount": 1100}]}}
+            cash_review = preview(second_session, cash_update, "cash-preview")
+            assert apply(second_session, cash_review, "cash-apply")["read_back"]["matches"]
+        return result
+
+    monkeypatch.setattr(reference_composition, "accept_portfolio_update", accept_while_other_session_advances)
+    saved = apply(server, review, "position-apply")
+    assert saved["status"] == "applied" and saved["read_back"]["matches"]
+    history = checkpoints.read_all()
+    assert len(history) == 4
+    assert saved["read_back"]["checkpoint_id"] == history[2]["checkpoint_id"] != history[3]["checkpoint_id"]
+    assert all(row["snapshot_effective_at"] == observed_at and row["source_ref"] == update["source_ref"]
+               for row in history[1:])
+    current = _call(_existing_server(tmp_path), "get_portfolio_state", {"portfolio_id": "portfolio-alpha"},
+                    request_id="fresh-session-read")["data"]
+    position = next(row for row in current["positions"] if row["position_id"] == original["position_id"])
+    assert position["quantity"] == 3 and position["observed_at"] == observed_at
+    assert update["source_ref"] in position["source_evidence"]
+    assert next(row for row in current["cash"] if row["cash_id"] == "cash-alpha")["value"]["amount"] == 1100
+
+
+def test_account_comparison_keeps_unchanged_values_at_their_original_times(tmp_path):
+    base = _portfolio()
+    old_time = _tp("2026-09-17T00:00:00Z")
+    position = base["positions"][0]
+    position["avg_cost_values"] = [{**_money(100.25), "as_of": old_time}]
+    position["valuation"] = {"currency": "KRW", "value_basis": "observed", "market_value": 900, "observed_at": old_time}
+    stores = _seed(tmp_path, base)
+    update = _manual_request()
+    update.update(reconcile_account_id="account-alpha")
+    update["changes"]["position_observations"][0]["quantity"] = 10
+    update["changes"]["position_observations"][0]["valuation"] = {
+        "currency": "KRW", "value_basis": "observed", "market_value": 900,
+    }
+    result = _preview(update, stores)
+    difference, = result["review"]["differences"]
+    assert [change["field"] for change in difference["field_changes"]] == ["cost_basis_values"]
+    candidate = result["candidate"]["reconciled_portfolio"]
+    recorded = next(row for row in candidate["positions"] if row["position_id"] == "position:005930")
+    assert recorded["avg_cost_values"][0]["as_of"] == old_time
+    assert recorded["valuation"]["observed_at"] == old_time
+
+
+@pytest.mark.parametrize("edits", [
+    {"position_observations": [{"account_id": "account-alpha", "position_id": "position:other-005930", "quantity": 12}]},
+    {"position_observations": [{"account_id": "account-beta", "symbol": "005930", "quantity": 12}]},
+    {"cash_amounts": [{"cash_id": "cash-beta", "amount": 0}]},
+])
+def test_account_comparison_rejects_rows_from_another_account(tmp_path, edits):
+    stores = _seed(tmp_path, _comparison_portfolio())
+    update = _manual_request()
+    update.update(reconcile_account_id="account-alpha", changes=edits)
+    with pytest.raises(PortfolioUpdateError, match="portfolio_update_(reconcile_account_mismatch|position_match_not_unique)"):
+        _preview(update, stores)
+    assert len(stores[1].read_all()) == 1
 
 
 def _addition():
