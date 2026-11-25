@@ -293,6 +293,8 @@ def preview_portfolio(
         checkpoint_store=checkpoint_store,
         write_store=write_store,
     )
+    if result["status"] == "no_changes":
+        return result
     candidate = result["candidate"]
     review = result["review"]
     latest_checkpoint = checkpoint_store.latest(str(candidate["portfolio_id"]))
@@ -312,10 +314,12 @@ def preview_portfolio(
         "pending_id": handle,
         "portfolio_id": candidate["portfolio_id"],
         "candidate_digest": candidate["candidate_digest"],
+        "snapshot_effective_at": review["snapshot_effective_at"],
         "summary": review["summary"],
         "differences": review["differences"],
         "gaps": review["gaps"],
         "confirmation": review["approval_phrase"],
+        **({"reconciliation": review["reconciliation"]} if "reconciliation" in review else {}),
     }
 
 

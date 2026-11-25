@@ -33,6 +33,7 @@
     "snapshot_effective_at": {"$ref": "common.schema.json#/$defs/timePoint"},
     "source_ref": {"$ref": "common.schema.json#/$defs/id"},
     "status": {"const": "review_required"},
+    "base_checkpoint_id": {"$ref": "common.schema.json#/$defs/id"},
     "current_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "observed_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "journal_cursor": {

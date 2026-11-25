@@ -51,7 +51,11 @@ if ! timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" image inspect "$IMAGE_REF" >/dev
 fi
 
 cd "$REPO_ROOT"
-timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f deploy/synology/compose.yml up -d --no-build runtime
+if [ "${INVESTKITCHEN_RELEASE_MODE:-0}" = 1 ]; then
+  timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f deploy/synology/compose.yml up -d --no-build --pull never runtime
+else
+  timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f deploy/synology/compose.yml up -d --no-build runtime
+fi
 
 container_id=$(timeout "${DOCKER_TIMEOUT}s" "$DOCKER_BIN" compose --env-file "$ENV_FILE" -f deploy/synology/compose.yml ps -q runtime)
 if [ -z "$container_id" ]; then
@@ -67,13 +71,17 @@ for _ in $(seq 1 60); do
     exit 0
   fi
   if [ "$status" = "unhealthy" ] || [ "$status" = "exited" ] || [ "$status" = "dead" ]; then
-    "$DOCKER_BIN" logs --tail 80 "$container_id" >&2 || true
+    if [ "${INVESTKITCHEN_RELEASE_MODE:-0}" != 1 ]; then
+      "$DOCKER_BIN" logs --tail 80 "$container_id" >&2 || true
+    fi
     echo "TradeMind Synology runtime failed: $status" >&2
     exit 2
   fi
   sleep 2
 done
 
-"$DOCKER_BIN" logs --tail 80 "$container_id" >&2 || true
+if [ "${INVESTKITCHEN_RELEASE_MODE:-0}" != 1 ]; then
+  "$DOCKER_BIN" logs --tail 80 "$container_id" >&2 || true
+fi
 echo "TradeMind Synology runtime did not become healthy in time." >&2
 exit 2

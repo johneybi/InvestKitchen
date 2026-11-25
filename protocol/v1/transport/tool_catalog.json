@@ -565,7 +565,7 @@
     },
     {
       "name": "preview_portfolio_update",
-      "description": "Preview a manual account update from a broker screen or document; a broker API binding is not required. Use changes.position_observations for existing holdings, changes.position_additions for new listed stocks or ETFs with a verified symbol, venue and currency, and changes.cash_amounts for existing cash. These can be combined in one preview. Pass only observed quantities, purchase values and valuation; omit missing quantities and averages without estimating them. Public position_id and cash_id values returned by get_portfolio_state are valid selectors. Omit created_at to use server time. Requires explicit confirmation and apply before records are stored. 수동 IRP·연금·은행 계좌 화면 업데이트에 사용합니다.",
+      "description": "Preview a manual account update from a user's reported change, statement or screenshots. Read get_portfolio_state first. For a reported quantity change, resolve the account and position, ask one focused question if ambiguous, then send one changes.position_observations row with the quantity. For an account comparison, read attachments together in the conversation and set reconcile_account_id. Send only legible, identified rows for that account and observation time using position_observations, position_additions (verified listed stocks or ETFs) and cash_amounts. Public position_id and cash_id selectors from get_portfolio_state are accepted. Overlapping rows are combined and conflicts or missing rows are reported in reconciliation.unconfirmed. Omit unreported fields and created_at. Use the actual source or report time. Show differences and unconfirmed items. Only review_required can proceed through trusted approval, exact apply and Portfolio read-back. 수동 계좌 수량 변경 및 내역서·여러 화면 대조에 사용합니다.",
       "read_only": true,
       "destructive": false,
       "required_permissions": ["portfolio.update"],
@@ -582,6 +582,11 @@
               "snapshot_effective_at": {"$ref": "#/$defs/timePoint"},
               "source_ref": {"type": "string", "minLength": 1},
               "created_at": {"$ref": "#/$defs/timePoint"},
+              "reconcile_account_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Opt in to a single-account comparison of extracted rows in changes, including overlapping rows from one statement or screenshot set. Use the same source_ref and effective time if resubmitted. Use position_observations for quantities."
+              },
               "changes": {
                 "type": "object",
                 "properties": {
@@ -599,7 +604,7 @@
             },
             "oneOf": [
               {"required": ["changes"], "not": {"required": ["observed_portfolio"]}},
-              {"required": ["observed_portfolio"], "not": {"required": ["changes"]}}
+              {"required": ["observed_portfolio"], "not": {"anyOf": [{"required": ["changes"]}, {"required": ["reconcile_account_id"]}]}}
             ],
             "additionalProperties": false
           }

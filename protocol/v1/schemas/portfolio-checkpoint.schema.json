@@ -29,6 +29,27 @@
     },
     "source_ref": {"type": ["string", "null"]},
     "reconciliation_candidate_ref": {"type": ["string", "null"]},
+    "account_batch": {
+      "type": "object",
+      "required": ["account_id", "parent_checkpoint_id", "held_rows"],
+      "properties": {
+        "account_id": {"$ref": "common.schema.json#/$defs/id"},
+        "parent_checkpoint_id": {"$ref": "common.schema.json#/$defs/id"},
+        "held_rows": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["reported", "disputed"],
+            "properties": {
+              "reported": {"$ref": "#/$defs/fieldNames"},
+              "disputed": {"$ref": "#/$defs/fieldNames"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "acceptance_verification_ref": {"type": ["string", "null"]},
     "base_portfolio_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "base_portfolio": {"$ref": "portfolio.schema.json"},
@@ -61,5 +82,8 @@
       "uniqueItems": true
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "$defs": {
+    "fieldNames": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}}
+  }
 }

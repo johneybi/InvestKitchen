@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import math
 import re
+from collections import defaultdict
 from typing import Any, Callable, Mapping
 
 from protocol.v1.adapters.common import PROTOCOL_VERSION, digest, public_reference, timepoint
@@ -12,6 +13,7 @@ from protocol.v1.runtime.native_write_store import NativeWriteStore
 from protocol.v1.runtime.portfolio_checkpoint import (
     CheckpointError,
     PortfolioCheckpointStore,
+    checkpoint_time_is_later,
     project_from_latest_checkpoint_through_cursor,
 )
 from protocol.v1.runtime.portfolio_reconciliation import (
@@ -24,6 +26,7 @@ from protocol.v1.runtime.portfolio_reconciliation import (
 
 
 ApprovalVerifier = Callable[[dict[str, Any], dict[str, Any]], dict[str, Any]]
+HeldRows = dict[str, dict[str, list[str]]]
 
 
 class PortfolioUpdateError(RuntimeError):
@@ -72,7 +75,7 @@ def _current_at_snapshot(
     portfolio_id: str,
     snapshot_effective_at: dict[str, Any],
     generated_at: dict[str, Any] | None,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     try:
         cursor = journal_cursor_for_snapshot(
             write_store,
@@ -95,7 +98,7 @@ def _current_at_snapshot(
     current = materialization.get("portfolio") if isinstance(materialization, dict) else None
     if not isinstance(current, dict) or current.get("portfolio_id") != portfolio_id:
         raise PortfolioUpdateError("portfolio_update_projection_invalid")
-    return current
+    return current, projection["checkpoint"]
 
 
 def _new_listed_position(
@@ -151,12 +154,214 @@ def _new_listed_position(
     }
 
 
+def _position_for_observation(
+    change: Mapping[str, Any], current_positions: list[dict[str, Any]], account_id: str,
+) -> dict[str, Any]:
+    keys = set(change)
+    fields = {"quantity", *HOLDING_VALUE_FIELDS}
+    if (keys - {"account_id", "symbol", "position_id", *fields}
+            or not (keys & fields) or ("symbol" in keys) == ("position_id" in keys)):
+        raise PortfolioUpdateError("portfolio_update_position_observation_invalid")
+    selector = change.get("position_id", change.get("symbol"))
+    if not isinstance(selector, str) or not selector:
+        raise PortfolioUpdateError("portfolio_update_position_identity_invalid")
+    code = "portfolio_update_position_match_not_unique"
+    if "position_id" in change:
+        row = _resolve_reference(current_positions, "position_id", selector, code=code)
+        if row.get("account_id") == account_id:
+            return row
+    else:
+        matches = [row for row in current_positions if row.get("account_id") == account_id
+                   and row.get("asset", {}).get("symbol") == selector]
+        if len(matches) == 1:
+            return matches[0]
+    raise PortfolioUpdateError(code)
+
+
+def _holding_values(
+    change: Mapping[str, Any], currency: str, observed_at: dict[str, Any], source_ref: str,
+) -> dict[str, Any]:
+    try:
+        return validate_holding_values(change, currency=currency, observed_at=observed_at, source_ref=source_ref)
+    except ValueError as exc:
+        raise PortfolioUpdateError("portfolio_update_position_values_invalid") from exc
+
+
+def _reported_values(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Compare economic fields independently of provenance and observation time."""
+    values = {field: row[field] for field in ("quantity", "amount") if field in row}
+    for field in HOLDING_VALUE_FIELDS:
+        if field not in row:
+            continue
+        if field == "valuation":
+            values[field] = {key: value for key, value in row[field].items()
+                             if key not in {"source_evidence", "observed_at"}}
+        else:
+            values[field] = [{key: value for key, value in item.items()
+                              if key not in {"as_of", "source_evidence"}} for item in row[field]]
+    return values
+
+
+def _merge_reported_values(rows: list[dict[str, Any]]) -> tuple[dict[str, Any], list[str]]:
+    merged: dict[str, Any] = {}
+    conflicts: set[str] = set()
+    for row in rows:
+        for field, value in row.items():
+            if field == "valuation":
+                valuation = merged.setdefault(field, {})
+                for key, item in value.items():
+                    if valuation.setdefault(key, item) != item:
+                        conflicts.add(f"valuation.{key}")
+            elif field == "asset":
+                if canonical_asset_identity(merged.setdefault(field, value)) != canonical_asset_identity(value):
+                    conflicts.add(field)
+            elif merged.setdefault(field, value) != value:
+                conflicts.add(field)
+    return merged, sorted(conflicts)
+
+
+def _batch_row_selector(domain: str, identity: str) -> dict[str, str]:
+    if domain == "addition":
+        return {"symbol": identity}
+    return {f"{domain}_id": public_reference(identity)}
+
+
+def _batch_changes(
+    current: dict[str, Any], changes: Mapping[str, Any], account_id: str,
+    *, snapshot_effective_at: dict[str, Any], source_ref: str, prior_held: HeldRows | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]], HeldRows, list[dict[str, Any]]]:
+    """Reduce one account's extracted rows to the existing narrow update format."""
+    accounts = {row["account_id"]: row for row in current["accounts"]}
+    if not isinstance(account_id, str) or account_id not in accounts:
+        raise PortfolioUpdateError("portfolio_update_reconcile_account_invalid")
+    collections = ("position_observations", "position_additions", "cash_amounts")
+    if set(changes) - set(collections) or not changes:
+        raise PortfolioUpdateError("portfolio_update_changes_fields_invalid")
+    positions = current["positions"]
+    cash = current["cash"]
+    target_positions = {row["position_id"]: row for row in positions if row["account_id"] == account_id}
+    target_cash = {row["cash_id"]: row for row in cash if row["account_id"] == account_id}
+    groups: dict[tuple[str, str], list[tuple[str, int, dict[str, Any]]]] = defaultdict(list)
+    for collection in collections:
+        rows = changes.get(collection, [])
+        if not isinstance(rows, list) or len(rows) > 1000:
+            raise PortfolioUpdateError("portfolio_update_changes_invalid")
+        for index, row in enumerate(rows, 1):
+            if not isinstance(row, Mapping):
+                raise PortfolioUpdateError("portfolio_update_changes_invalid")
+            if collection == "cash_amounts":
+                if set(row) != {"cash_id", "amount"} or not isinstance(row["cash_id"], str):
+                    raise PortfolioUpdateError("portfolio_update_cash_change_invalid")
+                saved = _resolve_reference(cash, "cash_id", row["cash_id"], code="portfolio_update_cash_match_missing")
+                if saved["account_id"] != account_id:
+                    raise PortfolioUpdateError("portfolio_update_reconcile_account_mismatch")
+                key = ("cash", saved["cash_id"])
+                values = {"amount": _number(row["amount"], code="portfolio_update_cash_amount_invalid")}
+            elif row.get("account_id") != account_id:
+                raise PortfolioUpdateError("portfolio_update_reconcile_account_mismatch")
+            elif collection == "position_additions":
+                new = _new_listed_position(row, portfolio_id=current["portfolio_id"], accounts=accounts,
+                                           snapshot_effective_at=snapshot_effective_at, source_ref=source_ref)
+                values = _reported_values(new)
+                if "quantity" not in row:
+                    values.pop("quantity")
+                symbol = new["asset"]["symbol"]
+                matches = [saved for saved in target_positions.values()
+                           if (saved["asset"].get("symbol") or "").strip().upper() == symbol]
+                if matches:
+                    if len(matches) != 1 or canonical_asset_identity(matches[0]["asset"]) != canonical_asset_identity(new["asset"]):
+                        raise PortfolioUpdateError("portfolio_update_position_addition_already_exists")
+                    key = ("position", matches[0]["position_id"])
+                else:
+                    key = ("addition", symbol)
+                    values["asset"] = new["asset"]
+            else:
+                saved = _position_for_observation(row, positions, account_id)
+                key = ("position", saved["position_id"])
+                values = _reported_values(_holding_values(row, saved["asset"]["currency"], snapshot_effective_at, source_ref))
+                if "quantity" in row:
+                    values["quantity"] = _number(row["quantity"], code="portfolio_update_position_quantity_invalid",
+                                                 nonnegative=True)
+            groups[key].append((collection, index, values))
+    if not groups:
+        raise PortfolioUpdateError("portfolio_update_changes_empty")
+
+    normalized: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    unconfirmed = []
+    held = dict(prior_held or {})
+    resolved = []
+    shown_conflicts = set()
+    for (domain, identity), rows in groups.items():
+        values, conflicts = _merge_reported_values([values for _, _, values in rows])
+        row_key = f"{domain}:{identity}"
+        fields = sorted((set(values) - {"valuation"}) | {
+            f"valuation.{field}" for field in values.get("valuation", {})
+        })
+        selector = _batch_row_selector(domain, identity)
+        if domain == "position":
+            saved_values = _reported_values(target_positions[identity])
+            saved_valuation = saved_values.get("valuation", {})
+            if "valuation" in values:
+                saved_values["valuation"] = {key: saved_valuation.get(key) for key in values["valuation"]}
+            collection = "position_observations"
+        elif domain == "cash":
+            saved_values = {"amount": target_cash[identity]["value"]["amount"]}
+            collection = "cash_amounts"
+        else:
+            saved_values = {}
+            collection = "position_additions"
+        changed = {field: value for field, value in values.items() if saved_values.get(field) != value}
+        if conflicts:
+            shown_conflicts.add(row_key)
+            if prior_held is None:
+                held[row_key] = {"reported": fields, "disputed": conflicts}
+            unconfirmed.append({**selector, "reason": "conflicting_values", "fields": conflicts,
+                                "rows": [{"collection": name, "index": index} for name, index, _ in rows]})
+            continue
+        resolving = prior_held is not None and row_key in prior_held
+        if resolving:
+            scope = prior_held[row_key]
+            if not (set(scope["disputed"]) <= set(fields) <= set(scope["reported"])):
+                raise PortfolioUpdateError("portfolio_update_held_row_fields_mismatch",
+                                           details={"disputed": scope["disputed"], "reported": scope["reported"]})
+            del held[row_key]
+            resolved.append({**selector, "fields": fields})
+        elif prior_held is not None and changed:
+            raise PortfolioUpdateError("checkpoint_effective_at_not_increasing")
+        if changed or resolving:
+            if domain == "addition":
+                normalized[collection].append({"account_id": account_id, **values})
+            elif domain == "cash":
+                normalized[collection].append({**selector, **values})
+            else:
+                # A changed quantity invalidates old values. Carry all directly
+                # reported replacements, even if a replacement amount stayed equal.
+                replacements = values if resolving or "quantity" in changed else changed
+                normalized[collection].append({"account_id": account_id, **selector, **replacements})
+
+    if resolved:
+        # The correction covers just the contested rows. Read the remaining
+        # unresolved scope from the approved snapshot, not the short retry.
+        for row_key in sorted(held.keys() - shown_conflicts):
+            domain, identity = row_key.split(":", 1)
+            unconfirmed.append({**_batch_row_selector(domain, identity), "reason": "conflicting_values",
+                                "fields": held[row_key]["disputed"]})
+    else:
+        unconfirmed.extend({"position_id": public_reference(identity), "reason": "not_observed"}
+                           for identity, row in target_positions.items()
+                           if row.get("state") != "closed" and ("position", identity) not in groups)
+        unconfirmed.extend({"cash_id": public_reference(identity), "reason": "not_observed"}
+                           for identity in target_cash if ("cash", identity) not in groups)
+    return dict(normalized), unconfirmed, held, resolved
+
+
 def _narrow_observation(
     current: dict[str, Any],
     changes: Mapping[str, Any],
     *,
     snapshot_effective_at: dict[str, Any],
     source_ref: str,
+    record_matching_cash: bool = False,
 ) -> dict[str, Any]:
     allowed = {"position_quantities", "position_observations", "position_additions", "cash_amounts"}
     if set(changes) - allowed:
@@ -280,26 +485,10 @@ def _narrow_observation(
     for change in position_observations:
         if not isinstance(change, Mapping):
             raise PortfolioUpdateError("portfolio_update_position_observation_invalid")
-        keys = set(change)
-        fields = {"quantity", *HOLDING_VALUE_FIELDS}
-        if (keys - {"account_id", "symbol", "position_id", *fields}
-                or not (keys & fields) or ("symbol" in keys) == ("position_id" in keys)):
-            raise PortfolioUpdateError("portfolio_update_position_observation_invalid")
         account_id = change.get("account_id")
-        selector = change.get("position_id") if "position_id" in change else change.get("symbol")
-        if not isinstance(account_id, str) or account_id not in accounts or not isinstance(selector, str) or not selector:
+        if not isinstance(account_id, str) or account_id not in accounts:
             raise PortfolioUpdateError("portfolio_update_position_identity_invalid")
-        if "position_id" in change:
-            current_row = _resolve_reference(current_positions, "position_id", selector,
-                                             code="portfolio_update_position_match_not_unique")
-            if current_row.get("account_id") != account_id:
-                raise PortfolioUpdateError("portfolio_update_position_match_not_unique")
-        else:
-            matches = [row for row in current_positions if row.get("account_id") == account_id
-                       and row.get("asset", {}).get("symbol") == change["symbol"] and change["symbol"]]
-            if len(matches) != 1:
-                raise PortfolioUpdateError("portfolio_update_position_match_not_unique")
-            current_row = matches[0]
+        current_row = _position_for_observation(change, current_positions, account_id)
         position_id = str(current_row["position_id"])
         if position_id in claimed_positions:
             raise PortfolioUpdateError("portfolio_update_position_change_duplicate")
@@ -312,11 +501,8 @@ def _narrow_observation(
                     row.pop(field, None)
             row.update(quantity=quantity, quantity_status="confirmed", quantity_basis="user_confirmation",
                        state="closed" if quantity == 0 else "open")
-        try:
-            values = validate_holding_values(change, currency=str(current_row.get("asset", {}).get("currency") or ""),
-                observed_at=snapshot_effective_at, source_ref=source_ref)
-        except ValueError as exc:
-            raise PortfolioUpdateError("portfolio_update_position_values_invalid") from exc
+        values = _holding_values(change, str(current_row.get("asset", {}).get("currency") or ""),
+                                 snapshot_effective_at, source_ref)
         row.update(values)
         row.update(authority="portfolio_fact", observed_at=copy.deepcopy(snapshot_effective_at),
                    source_evidence=_merge_evidence(row.get("source_evidence"), source_ref))
@@ -352,7 +538,7 @@ def _narrow_observation(
         if not isinstance(value, dict):
             raise PortfolioUpdateError("portfolio_update_cash_value_invalid")
         current_amount = _number(value.get("amount"), code="portfolio_update_cash_amount_invalid")
-        if float(current_amount) == float(amount):
+        if current_amount == amount and not record_matching_cash:
             continue
         value["amount"] = amount
         value["value_basis"] = "observed"
@@ -422,6 +608,7 @@ def build_portfolio_update_preview(
         "observed_portfolio",
         "changes",
         "created_at",
+        "reconcile_account_id",
     }
     if set(request) - allowed or request.get("request_version") != 1:
         raise PortfolioUpdateError("portfolio_update_request_fields_invalid")
@@ -434,27 +621,64 @@ def build_portfolio_update_preview(
         raise PortfolioUpdateError("portfolio_update_request_identity_invalid")
     full = request.get("observed_portfolio")
     changes = request.get("changes")
+    reconcile_account = "reconcile_account_id" in request
+    batch_review: dict[str, Any] = {}
+    account_batch = None
+    expected_checkpoint_id = None
+    record_matching_cash = False
     if (full is None) == (changes is None):
         raise PortfolioUpdateError("portfolio_update_request_mode_invalid")
     if full is not None:
+        if reconcile_account:
+            raise PortfolioUpdateError("portfolio_update_request_mode_invalid")
         if not isinstance(full, dict) or full.get("portfolio_id") != portfolio_id:
             raise PortfolioUpdateError("portfolio_update_observation_portfolio_mismatch")
         observed = copy.deepcopy(full)
     else:
         if not isinstance(changes, Mapping):
             raise PortfolioUpdateError("portfolio_update_changes_invalid")
-        current = _current_at_snapshot(
+        current, latest = _current_at_snapshot(
             checkpoint_store,
             write_store,
             portfolio_id=portfolio_id,
             snapshot_effective_at=snapshot_effective_at,
             generated_at=created_at,
         )
+        expected_checkpoint_id = latest["checkpoint_id"]
+        if reconcile_account:
+            account_id = request["reconcile_account_id"]
+            prior = latest.get("account_batch") or {}
+            prior_held = None
+            if (snapshot_effective_at == latest["snapshot_effective_at"] and source_ref == latest.get("source_ref")
+                    and account_id == prior.get("account_id")):
+                prior_held = prior.get("held_rows")
+            changes, unconfirmed, held, resolved = _batch_changes(
+                current, changes, account_id, snapshot_effective_at=snapshot_effective_at, source_ref=source_ref,
+                prior_held=prior_held,
+            )
+            batch_review = {"reconciliation": {"account_id": account_id, "unconfirmed": unconfirmed}}
+            if resolved:
+                batch_review["reconciliation"]["resolved"] = resolved
+                record_matching_cash = True
+            if held or resolved:
+                account_batch = {"account_id": account_id, "parent_checkpoint_id": latest["checkpoint_id"], "held_rows": held}
+            if not changes:
+                return {
+                    "status": "no_changes", "portfolio_id": portfolio_id,
+                    "snapshot_effective_at": copy.deepcopy(snapshot_effective_at),
+                    "differences": [], **batch_review,
+                }
+            try:
+                if not resolved and not checkpoint_time_is_later(snapshot_effective_at, latest["snapshot_effective_at"]):
+                    raise PortfolioUpdateError("checkpoint_effective_at_not_increasing")
+            except CheckpointError as exc:
+                raise PortfolioUpdateError(exc.code) from exc
         observed = _narrow_observation(
             current,
             changes,
             snapshot_effective_at=snapshot_effective_at,
             source_ref=source_ref,
+            record_matching_cash=record_matching_cash,
         )
     try:
         candidate = build_reconciliation_candidate_from_latest_checkpoint(
@@ -465,14 +689,18 @@ def build_portfolio_update_preview(
             source_ref=source_ref,
             created_at=created_at,
             identity_scope_account_ids=identity_scope_account_ids,
+            account_batch=account_batch,
+            expected_checkpoint_id=expected_checkpoint_id,
         )
         validate_reconciliation_candidate(candidate)
     except ReconciliationError as exc:
         raise PortfolioUpdateError(exc.code, details=exc.details) from exc
+    if expected_checkpoint_id is not None and candidate["current_portfolio_digest"] != digest(current):
+        raise PortfolioUpdateError("preview_stale")
     return {
         "status": "review_required",
         "candidate": candidate,
-        "review": portfolio_update_review(candidate),
+        "review": {**portfolio_update_review(candidate), **batch_review},
     }
 
 

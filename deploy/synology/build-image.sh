@@ -2,6 +2,7 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+CONTEXT=${TRADEMIND_BUILD_CONTEXT:-$ROOT}
 COMMIT=${TRADEMIND_SOURCE_COMMIT:-$(git -C "$ROOT" rev-parse HEAD)}
 IMAGE_REF=${TRADEMIND_RUNTIME_IMAGE_REF:-trademind-runtime:synology-$COMMIT}
 OUT_DIR=${TRADEMIND_IMAGE_OUTPUT_DIR:-$ROOT/dist}
@@ -20,10 +21,10 @@ docker buildx build \
   --provenance=false \
   --sbom=false \
   --build-arg TRADEMIND_SOURCE_COMMIT="$COMMIT" \
-  -f "$ROOT/deploy/synology/Dockerfile" \
+  -f "$CONTEXT/deploy/synology/Dockerfile" \
   -t "$IMAGE_REF" \
-  --output="type=docker,dest=$ARCHIVE" \
-  "$ROOT"
+  --output="type=docker,dest=$ARCHIVE",oci-mediatypes=false \
+  "$CONTEXT"
 
 # Validate exactly what will be transferred to Synology by loading the archive
 # back into Docker and inspecting/running that loaded image.
