@@ -21,6 +21,13 @@ READ_TOOLS = {
     "list_portfolios": None,
     "get_portfolio_state": "portfolio.state",
     "get_account_state": "account.state",
+    "get_open_items": "openitem.current",
+    "get_current_policy": "policy.current",
+    "get_opinion_weighting": "opinion.weighting.current",
+    "build_opinion_consensus": "opinion.consensus",
+    "get_decision_history": "decision.history",
+    "get_transactions": "transaction.history",
+    "start_reflection": "reflection.session",
     "get_active_plans": "plan.active",
     "get_plan_history": None,
     "get_current_knowledge": "knowledge.current",
@@ -150,7 +157,8 @@ class RemoteReadSurface:
         except ValidationError:
             raise ReadSurfaceError("Invalid tool arguments") from None
         arguments = copy.deepcopy(arguments)
-        if name in {"get_portfolio_state", "get_account_state", "get_active_plans", "get_plan_history"}:
+        if name in {"get_portfolio_state", "get_account_state", "get_active_plans", "get_plan_history",
+                    "get_open_items", "get_current_policy", "get_decision_history", "get_transactions"}:
             self._check_portfolio(grant, arguments["portfolio_id"])
         elif name == "build_decision_context":
             self._check_context(grant, available, arguments)
@@ -189,7 +197,7 @@ class RemoteReadSurface:
         normalized = {}
         for capability in requested:
             payload = _context_input(capability, inputs.get(capability, {}), request)
-            if capability in {"portfolio.state", "account.state", "plan.active"}:
+            if "portfolio_id" in self.schemas[CONTEXT_TOOLS[capability]].get("properties", {}):
                 if "portfolio_id" not in payload and default_portfolio is not None:
                     payload["portfolio_id"] = default_portfolio
                 self._check_portfolio(grant, payload.get("portfolio_id"))
